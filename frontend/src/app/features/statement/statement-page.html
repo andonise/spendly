@@ -1,0 +1,63 @@
+@if (notFound()) {
+  <app-empty-state icon="search_off" title="Statement not found" message="It may have been deleted, or the link is wrong.">
+    <a mat-stroked-button routerLink="/statements">All statements</a>
+  </app-empty-state>
+} @else {
+  <a mat-button routerLink="/statements" class="back"><mat-icon>arrow_back</mat-icon> Statements</a>
+  <header class="header">
+    <div>
+      <h1 class="page-title">{{ account()?.label ?? 'Statement' }}</h1>
+      @if (statement(); as s) {
+        <p class="page-subtitle">
+          {{ s.fileType }} statement
+          @if (s.periodStart) { · {{ s.periodStart }} – {{ s.periodEnd }} }
+          @if (account(); as a) { · <span class="mono">{{ a.ibanMasked }}</span> }
+        </p>
+      }
+    </div>
+    @if (status(); as st) {
+      <app-status-chip [status]="st" />
+    }
+  </header>
+
+  @switch (status()) {
+    @case ('UPLOADED') {
+      <app-progress text="Reading your statement…" [detail]="progressDetail()" />
+    }
+    @case ('PARSED') {
+      <app-progress text="Categorizing expenses…" [detail]="progressDetail()" />
+    }
+    @case ('CATEGORIZING') {
+      <app-progress text="Categorizing expenses…" [detail]="progressDetail()" />
+    }
+    @case ('NEEDS_INPUT') {
+      <app-questions-form [statementId]="id()" (submitted)="onAnswered($event)" (conflict)="onConflict()" />
+    }
+    @case ('CATEGORIZED') {
+      <app-statement-summary [statement]="statement()!" [account]="account()" />
+    }
+    @case ('FAILED') {
+      <mat-card appearance="outlined" class="failed" role="alert">
+        <mat-card-header>
+          <mat-icon mat-card-avatar class="failed-icon">error</mat-icon>
+          <mat-card-title>Processing failed</mat-card-title>
+          <mat-card-subtitle class="mono">{{ statement()?.error?.code ?? 'UNKNOWN_ERROR' }}</mat-card-subtitle>
+        </mat-card-header>
+        <mat-card-content>
+          <p class="error-message">{{ statement()?.error?.message ?? 'Something went wrong while processing this statement.' }}</p>
+          @if (statement()?.lastCompletedStep; as step) {
+            <p class="muted">Retry resumes after the last completed step: <span class="mono">{{ step }}</span>.</p>
+          }
+        </mat-card-content>
+        <mat-card-actions align="end">
+          <button mat-flat-button class="retry" (click)="retry()" [disabled]="retrying() || statement()?.error?.retryable === false">
+            <mat-icon>refresh</mat-icon> Retry
+          </button>
+        </mat-card-actions>
+      </mat-card>
+    }
+    @default {
+      <app-progress text="Loading…" />
+    }
+  }
+}

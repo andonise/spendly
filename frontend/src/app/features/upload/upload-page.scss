@@ -1,0 +1,38 @@
+.hint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  border-radius: 12px;
+  background: var(--mat-sys-secondary-container);
+  color: var(--mat-sys-on-secondary-container);
+}
+
+.body { display: flex; flex-direction: column; gap: 16px; padding-top: 16px; }
+.account { max-width: 420px; }
+
+.dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 40px 16px;
+  border: 2px dashed var(--mat-sys-outline);
+  border-radius: 16px;
+  cursor: pointer;
+  text-align: center;
+  transition: background 120ms, border-color 120ms;
+
+  &:hover, &:focus-visible, &.dragging {
+    border-color: var(--mat-sys-primary);
+    background: var(--mat-sys-surface-container-low);
+    outline: none;
+  }
+  &.has-error { border-color: var(--mat-sys-error); }
+}
+
+.drop-icon { width: 40px; height: 40px; font-size: 40px; color: var(--mat-sys-primary); }
+.file-name { font: var(--mat-sys-title-medium); word-break: break-all; }
+.error { color: var(--mat-sys-error); margin: 0; }
+.actions { display: flex; justify-content: flex-end; }
