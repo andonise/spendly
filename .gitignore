@@ -1,0 +1,86 @@
+# ---------------------------------------------------------------
+# Secrets and local configuration (never commit)
+# ---------------------------------------------------------------
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+*.jks
+secrets/
+.secrets/
+
+# ---------------------------------------------------------------
+# Statements, uploads and temp files (never commit real data)
+# Only synthetic files under samples/ and eval/ are allowed.
+# ---------------------------------------------------------------
+.data/
+uploads/
+tmp/
+temp/
+*.tmp
+*.csv
+*.xls
+*.xlsx
+*.pdf
+!samples/**/*.csv
+!samples/**/*.xls
+!samples/**/*.xlsx
+!samples/**/*.pdf
+!eval/**/golden/**/*.csv
+!eval/**/golden/**/*.pdf
+
+# ---------------------------------------------------------------
+# Kotlin / Gradle / JVM
+# ---------------------------------------------------------------
+.gradle/
+.kotlin/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+out/
+*.class
+*.log
+hs_err_pid*
+replay_pid*
+
+# ---------------------------------------------------------------
+# Python
+# ---------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+.ipynb_checkpoints/
+dist/
+
+# ---------------------------------------------------------------
+# Node / Angular
+# ---------------------------------------------------------------
+node_modules/
+.angular/
+coverage/
+npm-debug.log*
+yarn-error.log*
+.npm/
+
+# ---------------------------------------------------------------
+# IDEs and OS
+# ---------------------------------------------------------------
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+!.vscode/extensions.json
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini

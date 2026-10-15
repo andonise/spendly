@@ -1,0 +1,19 @@
+{
+  "eventId": "e2ca2340-3b4d-4e5f-a061-7c8d9e0f1a23",
+  "eventType": "StatementParseFailed",
+  "schemaVersion": 1,
+  "occurredAt": "2026-09-01T08:15:09.120Z",
+  "correlationId": "upl-20260901-7c1e9a",
+  "producer": "spendly-pdf-parser",
+  "payload": {
+    "statementId": "9b2e4c71-5a3f-4d88-b1e0-6f7a2c9d3e15",
+    "accountId": "3f1c2a9e-7b4d-4e21-9a6f-0c5d8e2b1a47",
+    "parser": {
+      "name": "python-pdf-pdfplumber",
+      "version": "0.1.0"
+    },
+    "reason": "BALANCE_MISMATCH",
+    "message": "Parsed transactions do not reconcile with the statement's opening and closing balance",
+    "retryable": false
+  }
+}

@@ -1,0 +1,328 @@
+{
+  "description": "Shared sanitizer fixtures (AC-SD-4). Both the Kotlin and the Python sanitizer must return exactly expected.text and expected.tokens for every case, using pii-rules.json and the hmacSecret below as the HMAC key. All data is synthetic.",
+  "rulesVersion": 1,
+  "hmacSecret": "spendly-fixture-secret-not-for-production",
+  "tokenFormat": "expected.tokens lists only token-action matches, in the order they were produced (rule order, then left to right); token = full 64-char lowercase hex HMAC-SHA256",
+  "cases": [
+    {
+      "id": "plain-merchant-unchanged",
+      "description": "Merchant name with a store number and city is not PII and stays as-is.",
+      "input": "KAUFLAND 3412 IASI RO",
+      "expected": {
+        "text": "KAUFLAND 3412 IASI RO",
+        "tokens": []
+      }
+    },
+    {
+      "id": "amounts-and-dates-unchanged",
+      "description": "Amounts, dates and short reference numbers are never matched.",
+      "input": "COMISION 1.234,56 RON 03.08.2026 14:22 REF 778812",
+      "expected": {
+        "text": "COMISION 1.234,56 RON 03.08.2026 14:22 REF 778812",
+        "tokens": []
+      }
+    },
+    {
+      "id": "pan-grouped-luhn-valid",
+      "description": "Luhn-valid 16-digit card number in groups of 4 is masked to the last 4.",
+      "input": "PLATA CARD 4111 1111 1111 1111 KAUFLAND IASI",
+      "expected": {
+        "text": "PLATA CARD ****1111 KAUFLAND IASI",
+        "tokens": []
+      }
+    },
+    {
+      "id": "pan-compact-luhn-valid",
+      "description": "Luhn-valid compact card number is masked.",
+      "input": "POS 5555555555554444 LIDL CLUJ",
+      "expected": {
+        "text": "POS ****4444 LIDL CLUJ",
+        "tokens": []
+      }
+    },
+    {
+      "id": "pan-not-luhn-unchanged",
+      "description": "16 digits that fail the Luhn check are left alone (e.g. an order reference).",
+      "input": "COMANDA 1234567812345678 EMAG",
+      "expected": {
+        "text": "COMANDA 1234567812345678 EMAG",
+        "tokens": []
+      }
+    },
+    {
+      "id": "pan-shrinks-past-trailing-digits",
+      "description": "A trailing digit group glued to a card number: the longest Luhn-valid chunk prefix is masked, the rest kept.",
+      "input": "CARD 4111 1111 1111 1111 20 RON",
+      "expected": {
+        "text": "CARD ****1111 20 RON",
+        "tokens": []
+      }
+    },
+    {
+      "id": "iban-compact-token",
+      "description": "Valid compact IBAN becomes country + last 4 and yields an iban token.",
+      "input": "TRANSFER CATRE RO49AAAA1B31007593840000",
+      "expected": {
+        "text": "TRANSFER CATRE RO**…0000",
+        "tokens": [
+          {
+            "ruleId": "iban",
+            "token": "d35313ed43c61c112b2568ddb039d1f05b063bf822dcb0caf79ce76824bc9eb4"
+          }
+        ]
+      }
+    },
+    {
+      "id": "iban-spaced-token",
+      "description": "Valid IBAN printed in 4-character groups; same token as the compact form.",
+      "input": "Beneficiar: RO49 AAAA 1B31 0075 9384 0000 chirie",
+      "expected": {
+        "text": "Beneficiar: RO**…0000 chirie",
+        "tokens": [
+          {
+            "ruleId": "iban",
+            "token": "d35313ed43c61c112b2568ddb039d1f05b063bf822dcb0caf79ce76824bc9eb4"
+          }
+        ]
+      }
+    },
+    {
+      "id": "iban-spaced-shrinks-past-word",
+      "description": "Spaced IBAN followed by a short uppercase word: the word is not swallowed.",
+      "input": "IBAN RO38 TEST 7777 8888 9999 0000 REF 12",
+      "expected": {
+        "text": "IBAN RO**…0000 REF 12",
+        "tokens": [
+          {
+            "ruleId": "iban",
+            "token": "1c9ac6775d5a872c103df3ddb118f89e343b744c345f1169a916426f17e290d8"
+          }
+        ]
+      }
+    },
+    {
+      "id": "iban-bad-checksum-unchanged",
+      "description": "IBAN-shaped string with a wrong checksum is not an IBAN and stays as-is.",
+      "input": "COD RO00AAAA1B31007593840000",
+      "expected": {
+        "text": "COD RO00AAAA1B31007593840000",
+        "tokens": []
+      }
+    },
+    {
+      "id": "own-iban-revolut",
+      "description": "Transfer to the user's own (synthetic) Revolut IBAN; token is what own-IBAN matching compares.",
+      "input": "TRANSFER INTERN RO32FAKE0000444455556666",
+      "expected": {
+        "text": "TRANSFER INTERN RO**…6666",
+        "tokens": [
+          {
+            "ruleId": "iban",
+            "token": "45558e11d2cba329ea4ae298ae3ebd46c24d91dd47f356430fae0240f60f6ee3"
+          }
+        ]
+      }
+    },
+    {
+      "id": "cnp-removed",
+      "description": "Valid CNP is removed entirely; surrounding spaces collapse.",
+      "input": "Plata impozit CNP 1960523460032 catre ANAF",
+      "expected": {
+        "text": "Plata impozit CNP catre ANAF",
+        "tokens": []
+      }
+    },
+    {
+      "id": "cnp-bad-checksum-unchanged",
+      "description": "13 digits with a CNP-like date but wrong checksum: not removed, and not Luhn-valid either.",
+      "input": "REF 1960523460031 X",
+      "expected": {
+        "text": "REF 1960523460031 X",
+        "tokens": []
+      }
+    },
+    {
+      "id": "email-masked",
+      "description": "E-mail address is masked.",
+      "input": "Factura trimisa la ion.popescu@example.com azi",
+      "expected": {
+        "text": "Factura trimisa la [EMAIL] azi",
+        "tokens": []
+      }
+    },
+    {
+      "id": "phone-ro-mobile-grouped",
+      "description": "Romanian mobile number with spaces is masked.",
+      "input": "Reincarcare 0722 123 456 Orange",
+      "expected": {
+        "text": "Reincarcare [PHONE] Orange",
+        "tokens": []
+      }
+    },
+    {
+      "id": "phone-ro-plus40",
+      "description": "Romanian mobile number with +40 prefix is masked.",
+      "input": "Top up +40722123456 Vodafone",
+      "expected": {
+        "text": "Top up [PHONE] Vodafone",
+        "tokens": []
+      }
+    },
+    {
+      "id": "phone-international",
+      "description": "International number is masked.",
+      "input": "Call +4915112345678 support",
+      "expected": {
+        "text": "Call [PHONE] support",
+        "tokens": []
+      }
+    },
+    {
+      "id": "person-transfer-catre",
+      "description": "Private person after 'TRANSFER CATRE' is pseudonymized.",
+      "input": "TRANSFER CATRE ION POPESCU",
+      "expected": {
+        "text": "TRANSFER CATRE [PERSON#4d37c156]",
+        "tokens": [
+          {
+            "ruleId": "person_name",
+            "token": "4d37c156fb5ddab6b71fb4fe4f5fca73da88fcb0d74b8aa5a666a0e5faa92e7a"
+          }
+        ]
+      }
+    },
+    {
+      "id": "person-revolut-to-same-token",
+      "description": "Same person in Revolut style and mixed case gives the same token (AC-SD-5).",
+      "input": "To Ion Popescu",
+      "expected": {
+        "text": "To [PERSON#4d37c156]",
+        "tokens": [
+          {
+            "ruleId": "person_name",
+            "token": "4d37c156fb5ddab6b71fb4fe4f5fca73da88fcb0d74b8aa5a666a0e5faa92e7a"
+          }
+        ]
+      }
+    },
+    {
+      "id": "person-initial-with-tail",
+      "description": "Initial + surname; the name stops at a stop word and the tail is kept.",
+      "input": "Plata catre I. POPESCU CHIRIE IULIE",
+      "expected": {
+        "text": "Plata catre [PERSON#e5d41e4f] CHIRIE IULIE",
+        "tokens": [
+          {
+            "ruleId": "person_name",
+            "token": "e5d41e4f93d3ca1774bf8558235b8ac93be177eaa9589f41c01cd40dfdf7cd73"
+          }
+        ]
+      }
+    },
+    {
+      "id": "person-diacritics-folded",
+      "description": "Diacritics are folded for the token: 'Ștefan Țurcanu' and 'STEFAN TURCANU' share a token.",
+      "input": "Transfer from Ștefan Țurcanu",
+      "expected": {
+        "text": "Transfer from [PERSON#add5d44f]",
+        "tokens": [
+          {
+            "ruleId": "person_name",
+            "token": "add5d44f1cc5b4d8bb69549566b4936d6d9952a7745140302102542448e7bc8d"
+          }
+        ]
+      }
+    },
+    {
+      "id": "person-no-diacritics-same-token",
+      "description": "ASCII spelling of the previous case; identical token.",
+      "input": "TRANSFER FROM STEFAN TURCANU",
+      "expected": {
+        "text": "TRANSFER FROM [PERSON#add5d44f]",
+        "tokens": [
+          {
+            "ruleId": "person_name",
+            "token": "add5d44f1cc5b4d8bb69549566b4936d6d9952a7745140302102542448e7bc8d"
+          }
+        ]
+      }
+    },
+    {
+      "id": "person-three-words",
+      "description": "Three-word name (two given names).",
+      "input": "TRANSFER DE LA MARIA ELENA IONESCU",
+      "expected": {
+        "text": "TRANSFER DE LA [PERSON#cf5068b4]",
+        "tokens": [
+          {
+            "ruleId": "person_name",
+            "token": "cf5068b446022512296ab27515e92b2d465b51bc25f52e534aac89ed556afeb7"
+          }
+        ]
+      }
+    },
+    {
+      "id": "company-not-person",
+      "description": "Company names (company words) are not pseudonymized.",
+      "input": "TRANSFER CATRE SC ALFA TRADE SRL",
+      "expected": {
+        "text": "TRANSFER CATRE SC ALFA TRADE SRL",
+        "tokens": []
+      }
+    },
+    {
+      "id": "single-word-not-person",
+      "description": "A single word after the keyword is never treated as a person.",
+      "input": "TRANSFER CATRE REVOLUT",
+      "expected": {
+        "text": "TRANSFER CATRE REVOLUT",
+        "tokens": []
+      }
+    },
+    {
+      "id": "lowercase-name-unchanged",
+      "description": "Names must start with a capital letter; all-lowercase text is left alone (documented limitation).",
+      "input": "transfer catre ion popescu",
+      "expected": {
+        "text": "transfer catre ion popescu",
+        "tokens": []
+      }
+    },
+    {
+      "id": "combined-person-and-iban",
+      "description": "Person and IBAN in one line: IBAN runs first; tokens are listed in rule order.",
+      "input": "TRANSFER CATRE ION POPESCU RO38TEST7777888899990000 chirie august",
+      "expected": {
+        "text": "TRANSFER CATRE [PERSON#4d37c156] RO**…0000 chirie august",
+        "tokens": [
+          {
+            "ruleId": "iban",
+            "token": "1c9ac6775d5a872c103df3ddb118f89e343b744c345f1169a916426f17e290d8"
+          },
+          {
+            "ruleId": "person_name",
+            "token": "4d37c156fb5ddab6b71fb4fe4f5fca73da88fcb0d74b8aa5a666a0e5faa92e7a"
+          }
+        ]
+      }
+    },
+    {
+      "id": "whitespace-normalized",
+      "description": "Tabs, NBSP and repeated spaces collapse to one space; result is trimmed.",
+      "input": "  KAUFLAND  IASI\t\tRO  ",
+      "expected": {
+        "text": "KAUFLAND IASI RO",
+        "tokens": []
+      }
+    },
+    {
+      "id": "empty-input",
+      "description": "Empty input stays empty.",
+      "input": "",
+      "expected": {
+        "text": "",
+        "tokens": []
+      }
+    }
+  ]
+}
