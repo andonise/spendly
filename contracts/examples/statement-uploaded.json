@@ -1,0 +1,17 @@
+{
+  "eventId": "c0a8012e-1f2b-4c3d-8e4f-5a6b7c8d9e01",
+  "eventType": "StatementUploaded",
+  "schemaVersion": 1,
+  "occurredAt": "2026-09-01T08:15:02.481Z",
+  "correlationId": "upl-20260901-7c1e9a",
+  "producer": "spendly-backend",
+  "payload": {
+    "statementId": "9b2e4c71-5a3f-4d88-b1e0-6f7a2c9d3e15",
+    "accountId": "3f1c2a9e-7b4d-4e21-9a6f-0c5d8e2b1a47",
+    "bank": "Generic Bank",
+    "accountCurrency": "RON",
+    "fileType": "PDF",
+    "tempFilePath": "9b2e4c71-5a3f-4d88-b1e0-6f7a2c9d3e15.pdf",
+    "fileSha256": "50d858e0985ecc7f60418aaf0cc5ab587f42c2570a884095a9e8ccacd0f6545c"
+  }
+}

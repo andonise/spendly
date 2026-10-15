@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spendly.local/contracts/schemas/statement-parse-failed.schema.json",
+  "title": "StatementParseFailed",
+  "description": "Published by a parser when a statement cannot be imported (e.g. parsed totals do not reconcile with the opening/closing balance). Topic: spendly.statement-parse-failed, key: accountId. The backend moves the statement to FAILED and stores 'reason' + 'message' in statements.error. 'message' must not contain PII, amounts or descriptions.",
+  "allOf": [{ "$ref": "envelope.schema.json" }],
+  "properties": {
+    "eventType": { "const": "StatementParseFailed" },
+    "schemaVersion": { "const": 1 },
+    "payload": {
+      "type": "object",
+      "required": ["statementId", "accountId", "parser", "reason", "message", "retryable"],
+      "additionalProperties": false,
+      "properties": {
+        "statementId": { "$ref": "common.schema.json#/$defs/uuid" },
+        "accountId": { "$ref": "common.schema.json#/$defs/uuid" },
+        "parser": { "$ref": "common.schema.json#/$defs/parser" },
+        "reason": {
+          "type": "string",
+          "enum": ["BALANCE_MISMATCH", "UNSUPPORTED_LAYOUT", "NO_TRANSACTIONS", "FILE_NOT_FOUND", "FILE_UNREADABLE", "SCHEMA_VALIDATION", "INTERNAL_ERROR"]
+        },
+        "message": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "retryable": { "type": "boolean" }
+      }
+    }
+  }
+}
