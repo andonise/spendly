@@ -1,0 +1,18 @@
+.section { margin-bottom: 24px; }
+
+.table-wrap { overflow-x: auto; }
+table { width: 100%; }
+.label { font-weight: 500; }
+.small { font-size: 12px; }
+.actions { text-align: right; width: 48px; }
+
+.form {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 4px 16px;
+  padding-top: 8px;
+}
+.wide { grid-column: 1 / -1; }
+.form-actions { display: flex; justify-content: flex-end; }
+
+.danger p { margin: 8px 0; }

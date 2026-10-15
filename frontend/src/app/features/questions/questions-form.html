@@ -1,0 +1,92 @@
+@if (loading()) {
+  <mat-progress-bar mode="indeterminate" />
+} @else if (questions().length === 0) {
+  <p class="muted">There are no open questions for this statement.</p>
+} @else {
+  <div class="intro">
+    <h2>A few transactions need your input</h2>
+    <p class="muted">Pick a category or skip; skipped transactions are filed under “Other”. {{ answeredCount() }} of {{ questions().length }} done.</p>
+  </div>
+
+  @for (q of questions(); track q.id; let i = $index) {
+    @let d = draft(q.id);
+    <mat-card appearance="outlined" class="question" [class.answered]="d.skip || d.category" [attr.data-question-id]="q.id">
+      <mat-card-content>
+        <div class="txn">
+          <div class="txn-main">
+            <div class="description">{{ q.transaction.description }}</div>
+            <div class="meta muted">
+              {{ q.transaction.bookingDate }}
+              @if (q.transaction.accountLabel) { · {{ q.transaction.accountLabel }} }
+              @if (q.kind === 'TRANSFER') { · <span class="kind">Possible transfer</span> }
+            </div>
+          </div>
+          <div class="amount" [class.amount-negative]="q.transaction.amount.startsWith('-')">
+            {{ q.transaction.amount | money: q.transaction.currency }}
+          </div>
+        </div>
+
+        <p class="question-text" [id]="'q-' + i">{{ q.questionText }}</p>
+
+        <div class="choices" role="group" [attr.aria-labelledby]="'q-' + i">
+          @for (s of q.suggestions; track s) {
+            @if (d.category === s) {
+              <button mat-flat-button type="button" class="suggestion" aria-pressed="true" (click)="choose(q.id, s)">
+                <mat-icon>check</mat-icon> {{ label(s) }}
+              </button>
+            } @else {
+              <button mat-stroked-button type="button" class="suggestion" aria-pressed="false" (click)="choose(q.id, s)">
+                {{ label(s) }}
+              </button>
+            }
+          }
+          <mat-form-field class="all-categories" subscriptSizing="dynamic">
+            <mat-label>All categories</mat-label>
+            <mat-select [value]="d.category" (valueChange)="choose(q.id, $event)">
+              @for (c of categoryOptions; track c.value) {
+                <mat-option [value]="c.value">{{ c.label }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+          <button
+            mat-button
+            type="button"
+            class="skip"
+            [class.skip-on]="d.skip"
+            [attr.aria-pressed]="d.skip"
+            (click)="toggleSkip(q.id)"
+          >
+            <mat-icon>{{ d.skip ? 'check_box' : 'help_outline' }}</mat-icon> Skip / I don't know
+          </button>
+        </div>
+
+        <div class="extras">
+          <mat-form-field class="hint" subscriptSizing="dynamic">
+            <mat-label>Hint (optional)</mat-label>
+            <input matInput maxlength="500" [value]="d.hint" (input)="setHint(q.id, $any($event.target).value)"
+                   placeholder="e.g. this is my landlord" />
+          </mat-form-field>
+          <mat-checkbox [checked]="d.applyToFuture" (change)="setApplyToFuture(q.id, $event.checked)">
+            Apply to future transactions
+          </mat-checkbox>
+        </div>
+      </mat-card-content>
+    </mat-card>
+  }
+
+  @if (conflictMessage()) {
+    <p class="conflict" role="status"><mat-icon aria-hidden="true">info</mat-icon> {{ conflictMessage() }}</p>
+  }
+
+  <div class="submit-row">
+    @if (!allAnswered()) {
+      <span class="muted">Answer or skip every transaction to continue.</span>
+    }
+    <button mat-flat-button type="button" class="submit" [disabled]="!canSubmit()" (click)="submit()">
+      @if (submitting()) { Submitting… } @else { Submit answers }
+    </button>
+  </div>
+  @if (submitting()) {
+    <mat-progress-bar mode="indeterminate" />
+  }
+}

@@ -1,0 +1,133 @@
+<h1 class="page-title">Accounts</h1>
+<p class="page-subtitle">Register every account you upload statements for. The IBAN is sent once and only its last 4 digits are kept.</p>
+
+<mat-card appearance="outlined" class="section">
+  <mat-card-header><mat-card-title>Your accounts</mat-card-title></mat-card-header>
+  @if (loading()) {
+    <mat-progress-bar mode="indeterminate" />
+  }
+  <mat-card-content>
+    @if (!loading() && accounts().length === 0) {
+      <p class="muted">No accounts yet. Register your first one below.</p>
+    } @else {
+      <div class="table-wrap">
+        <table mat-table [dataSource]="accounts()">
+          <ng-container matColumnDef="label">
+            <th mat-header-cell *matHeaderCellDef>Account</th>
+            <td mat-cell *matCellDef="let a">
+              <div class="label">{{ a.label }}</div>
+              <div class="muted small">{{ a.bank }} · {{ a.currency }}</div>
+            </td>
+          </ng-container>
+          <ng-container matColumnDef="type">
+            <th mat-header-cell *matHeaderCellDef>Type</th>
+            <td mat-cell *matCellDef="let a">{{ typeLabel(a.type) }}</td>
+          </ng-container>
+          <ng-container matColumnDef="iban">
+            <th mat-header-cell *matHeaderCellDef>IBAN</th>
+            <td mat-cell *matCellDef="let a" class="mono">{{ a.ibanMasked }}</td>
+          </ng-container>
+          <ng-container matColumnDef="card">
+            <th mat-header-cell *matHeaderCellDef>Card</th>
+            <td mat-cell *matCellDef="let a" class="mono">{{ a.cardLast4 ? '****' + a.cardLast4 : '—' }}</td>
+          </ng-container>
+          <ng-container matColumnDef="activeFrom">
+            <th mat-header-cell *matHeaderCellDef>Active from</th>
+            <td mat-cell *matCellDef="let a">{{ a.activeFrom }}</td>
+          </ng-container>
+          <ng-container matColumnDef="state">
+            <th mat-header-cell *matHeaderCellDef>State</th>
+            <td mat-cell *matCellDef="let a">
+              @if (a.closedAt) {
+                <span class="muted">Closed {{ a.closedAt }}</span>
+              } @else {
+                Open
+              }
+            </td>
+          </ng-container>
+          <ng-container matColumnDef="actions">
+            <th mat-header-cell *matHeaderCellDef><span class="cdk-visually-hidden">Actions</span></th>
+            <td mat-cell *matCellDef="let a" class="actions">
+              <button mat-icon-button [matMenuTriggerFor]="menu" [disabled]="busyId() === a.id" [attr.aria-label]="'Actions for ' + a.label">
+                <mat-icon>more_vert</mat-icon>
+              </button>
+              <mat-menu #menu="matMenu">
+                <button mat-menu-item (click)="close(a)" [disabled]="!!a.closedAt">
+                  <mat-icon>lock</mat-icon><span>Close account</span>
+                </button>
+                <button mat-menu-item (click)="remove(a)">
+                  <mat-icon>delete</mat-icon><span>Delete</span>
+                </button>
+              </mat-menu>
+            </td>
+          </ng-container>
+          <tr mat-header-row *matHeaderRowDef="columns"></tr>
+          <tr mat-row *matRowDef="let row; columns: columns"></tr>
+        </table>
+      </div>
+    }
+  </mat-card-content>
+</mat-card>
+
+<mat-card appearance="outlined" class="section">
+  <mat-card-header><mat-card-title>Register an account</mat-card-title></mat-card-header>
+  <mat-card-content>
+    <form [formGroup]="form" (ngSubmit)="register()" class="form" autocomplete="off">
+      <mat-form-field>
+        <mat-label>Label</mat-label>
+        <input matInput formControlName="label" placeholder="Generic Bank current" maxlength="80" />
+        <mat-error>Enter a label (max 80 characters).</mat-error>
+      </mat-form-field>
+      <mat-form-field>
+        <mat-label>Bank</mat-label>
+        <input matInput formControlName="bank" placeholder="Generic Bank" maxlength="100" />
+        <mat-error>Enter the bank (max 100 characters).</mat-error>
+      </mat-form-field>
+      <mat-form-field>
+        <mat-label>Type</mat-label>
+        <mat-select formControlName="type">
+          @for (t of accountTypes; track t) {
+            <mat-option [value]="t">{{ typeLabels[t] }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+      <mat-form-field>
+        <mat-label>Currency</mat-label>
+        <input matInput formControlName="currency" maxlength="3" />
+        <mat-error>3-letter code, e.g. RON.</mat-error>
+      </mat-form-field>
+      <mat-form-field class="wide">
+        <mat-label>IBAN</mat-label>
+        <input matInput formControlName="iban" class="mono" placeholder="RO54 SPND 0000 1111 2222 3333" spellcheck="false" />
+        <mat-hint>Checked locally (mod-97). Only the last 4 digits are stored.</mat-hint>
+        <mat-error>{{ ibanError() }}</mat-error>
+      </mat-form-field>
+      <mat-form-field>
+        <mat-label>Card last 4 (optional)</mat-label>
+        <input matInput formControlName="cardLast4" inputmode="numeric" maxlength="4" />
+        <mat-error>Exactly 4 digits.</mat-error>
+      </mat-form-field>
+      <mat-form-field>
+        <mat-label>Active from</mat-label>
+        <input matInput type="date" formControlName="activeFrom" />
+        <mat-error>Pick a date.</mat-error>
+      </mat-form-field>
+      <div class="form-actions wide">
+        <button mat-flat-button type="submit" [disabled]="saving()">
+          <mat-icon>add</mat-icon> Register account
+        </button>
+      </div>
+    </form>
+  </mat-card-content>
+</mat-card>
+
+<mat-card appearance="outlined" class="section danger">
+  <mat-card-header><mat-card-title>Settings</mat-card-title></mat-card-header>
+  <mat-card-content>
+    <p>Delete every account, statement, transaction and learning stored by Spendly.</p>
+    <button mat-stroked-button disabled>
+      <mat-icon>delete_forever</mat-icon> Delete all my data
+    </button>
+    <p class="muted small">Coming later (Phase 7): <span class="mono">DELETE /api/me/data</span> is not implemented yet.</p>
+  </mat-card-content>
+</mat-card>

@@ -1,0 +1,13 @@
+.back { margin: -8px 0 8px -8px; }
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.failed { max-width: 640px; }
+.failed-icon { color: var(--mat-sys-error); display: flex; align-items: center; justify-content: center; }
+.error-message { font: var(--mat-sys-body-large); }
