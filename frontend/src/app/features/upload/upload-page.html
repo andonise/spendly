@@ -1,0 +1,61 @@
+<h1 class="page-title">Upload a statement</h1>
+<p class="page-subtitle">CSV, XLS, XLSX or PDF, up to 20 MB, one statement per account.</p>
+
+<div class="hint" role="note">
+  <mat-icon aria-hidden="true">sync_alt</mat-icon>
+  <span>Upload all accounts for this month to match transfers.</span>
+</div>
+
+<mat-card appearance="outlined">
+  <mat-card-content class="body">
+    <mat-form-field class="account">
+      <mat-label>Account</mat-label>
+      <mat-select [value]="accountId()" (valueChange)="accountId.set($event)" [disabled]="uploading()">
+        @for (a of accounts(); track a.id) {
+          <mat-option [value]="a.id">{{ a.label }} · {{ a.ibanMasked }}</mat-option>
+        }
+      </mat-select>
+      @if (accountsLoaded() && accounts().length === 0) {
+        <mat-hint>No open accounts. <a routerLink="/accounts">Register one first.</a></mat-hint>
+      }
+    </mat-form-field>
+
+    <div
+      class="dropzone"
+      [class.dragging]="dragging()"
+      [class.has-error]="!!fileError()"
+      (dragover)="onDragOver($event)"
+      (dragleave)="onDragLeave($event)"
+      (drop)="onDrop($event)"
+      (click)="picker.click()"
+      (keydown.enter)="picker.click()"
+      (keydown.space)="$event.preventDefault(); picker.click()"
+      tabindex="0"
+      role="button"
+      aria-label="Choose a statement file or drop it here"
+    >
+      <mat-icon class="drop-icon" aria-hidden="true">upload_file</mat-icon>
+      @if (file(); as f) {
+        <div class="file-name">{{ f.name }}</div>
+        <div class="muted">{{ f.size / 1024 | number: '1.0-1' }} KB</div>
+      } @else {
+        <div class="file-name">Drop a statement here</div>
+        <div class="muted">or click to choose a file</div>
+      }
+      <input #picker type="file" hidden [accept]="accept" (change)="onPick(picker)" />
+    </div>
+    @if (fileError()) {
+      <p class="error" role="alert">{{ fileError() }}</p>
+    }
+
+    @if (uploading()) {
+      <mat-progress-bar mode="indeterminate" />
+    }
+
+    <div class="actions">
+      <button mat-flat-button (click)="upload()" [disabled]="!canUpload()">
+        <mat-icon>cloud_upload</mat-icon> Upload
+      </button>
+    </div>
+  </mat-card-content>
+</mat-card>

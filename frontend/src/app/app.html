@@ -1,0 +1,59 @@
+<mat-toolbar class="toolbar">
+  @if (handset()) {
+    <button mat-icon-button (click)="drawer.toggle()" aria-label="Toggle navigation">
+      <mat-icon>menu</mat-icon>
+    </button>
+  }
+  <a class="brand" routerLink="/statements">
+    <mat-icon aria-hidden="true">savings</mat-icon>
+    <span>Spendly</span>
+  </a>
+  <span class="spacer"></span>
+  @if (mockedGroups().length) {
+    <span class="mock-hint" [matTooltip]="'Mocked endpoint groups: ' + mockedGroups().join(', ')">
+      <mat-icon aria-hidden="true">science</mat-icon>
+      <span class="mock-text">Mock API</span>
+    </span>
+  }
+  @if (openQuestions() > 0) {
+    <a mat-flat-button class="questions-cta" routerLink="/statements" [queryParams]="{ status: 'NEEDS_INPUT' }">
+      <mat-icon>help</mat-icon>
+      {{ openQuestions() }} {{ openQuestions() === 1 ? 'question needs' : 'questions need' }} your input
+    </a>
+  }
+</mat-toolbar>
+
+<mat-sidenav-container class="container">
+  <mat-sidenav
+    #drawer
+    class="sidenav"
+    [mode]="handset() ? 'over' : 'side'"
+    [opened]="!handset()"
+    [attr.role]="handset() ? 'dialog' : 'navigation'"
+  >
+    <mat-nav-list>
+      @for (item of nav; track item.path) {
+        <a
+          mat-list-item
+          [routerLink]="item.path"
+          routerLinkActive
+          #rla="routerLinkActive"
+          [activated]="rla.isActive"
+          (click)="handset() && drawer.close()"
+        >
+          <mat-icon matListItemIcon>{{ item.icon }}</mat-icon>
+          <span matListItemTitle>{{ item.label }}</span>
+          @if (item.path === '/statements' && openQuestions() > 0) {
+            <span matListItemMeta class="nav-badge" [attr.aria-label]="openQuestions() + ' open questions'">{{ openQuestions() }}</span>
+          }
+        </a>
+      }
+    </mat-nav-list>
+  </mat-sidenav>
+
+  <mat-sidenav-content>
+    <main class="content">
+      <router-outlet />
+    </main>
+  </mat-sidenav-content>
+</mat-sidenav-container>

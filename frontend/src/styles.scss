@@ -1,0 +1,51 @@
+@use '@angular/material' as mat;
+
+// Material 3 theme. `color-scheme: light dark` makes the system tokens follow the OS
+// preference (they are emitted as light-dark() values).
+html {
+  color-scheme: light dark;
+  @include mat.theme((
+    color: (
+      primary: mat.$azure-palette,
+      tertiary: mat.$orange-palette,
+    ),
+    typography: (
+      plain-family: ('Roboto', 'Segoe UI', system-ui, -apple-system, sans-serif),
+      brand-family: ('Roboto', 'Segoe UI', system-ui, -apple-system, sans-serif),
+    ),
+    density: 0,
+  ));
+}
+
+html, body { height: 100%; }
+
+body {
+  margin: 0;
+  background: var(--mat-sys-surface);
+  color: var(--mat-sys-on-surface);
+  font: var(--mat-sys-body-medium);
+}
+
+h1.page-title {
+  font: var(--mat-sys-headline-medium);
+  margin: 0 0 4px;
+}
+
+p.page-subtitle {
+  font: var(--mat-sys-body-large);
+  color: var(--mat-sys-on-surface-variant);
+  margin: 0 0 24px;
+}
+
+.mat-mdc-snack-bar-container.app-snackbar-error {
+  @include mat.snack-bar-overrides((
+    container-color: var(--mat-sys-error-container),
+    supporting-text-color: var(--mat-sys-on-error-container),
+    button-color: var(--mat-sys-on-error-container),
+  ));
+}
+
+.muted { color: var(--mat-sys-on-surface-variant); }
+.mono { font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace; }
+.amount-negative { color: var(--mat-sys-error); }
+.amount-positive { color: #2f9e4f; }
