@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spendly.local/contracts/schemas/envelope.schema.json",
+  "title": "EventEnvelope",
+  "description": "Every Kafka message value is one envelope serialized as UTF-8 JSON. Event schemas extend it with allOf and pin eventType and payload.",
+  "type": "object",
+  "required": ["eventId", "eventType", "schemaVersion", "occurredAt", "correlationId", "producer", "payload"],
+  "additionalProperties": false,
+  "properties": {
+    "eventId": { "$ref": "common.schema.json#/$defs/uuid", "description": "Unique per event; consumers dedupe on (eventId, consumer) in processed_events" },
+    "eventType": {
+      "type": "string",
+      "enum": ["StatementUploaded", "TransactionsImported", "StatementParseFailed"]
+    },
+    "schemaVersion": { "type": "integer", "minimum": 1, "description": "Version of the payload schema for this eventType" },
+    "occurredAt": { "$ref": "common.schema.json#/$defs/isoDateTime" },
+    "correlationId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100,
+      "pattern": "^[A-Za-z0-9._:-]+$",
+      "description": "Starts at the upload request and is copied unchanged to every event caused by it (also sent as Kafka header 'correlationId')"
+    },
+    "producer": { "type": "string", "enum": ["spendly-backend", "spendly-pdf-parser"] },
+    "payload": { "type": "object" }
+  }
+}

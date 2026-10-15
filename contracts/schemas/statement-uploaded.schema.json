@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spendly.local/contracts/schemas/statement-uploaded.schema.json",
+  "title": "StatementUploaded",
+  "description": "Published by the backend (through the outbox) after an upload is saved. Topic: spendly.statement-uploaded, key: accountId. The Kotlin CSV parser handles CSV/XLS/XLSX; the Python pdf-parser handles PDF. Each consumer ignores (but still marks processed) the file types it does not own.",
+  "allOf": [{ "$ref": "envelope.schema.json" }],
+  "properties": {
+    "eventType": { "const": "StatementUploaded" },
+    "schemaVersion": { "const": 1 },
+    "producer": { "const": "spendly-backend" },
+    "payload": {
+      "type": "object",
+      "required": ["statementId", "accountId", "bank", "accountCurrency", "fileType", "tempFilePath", "fileSha256"],
+      "additionalProperties": false,
+      "properties": {
+        "statementId": { "$ref": "common.schema.json#/$defs/uuid" },
+        "accountId": { "$ref": "common.schema.json#/$defs/uuid" },
+        "bank": { "type": "string", "minLength": 1, "maxLength": 100, "description": "Bank label from the account (e.g. 'BT', 'Revolut'); a hint for layout detection" },
+        "accountCurrency": { "$ref": "common.schema.json#/$defs/currency" },
+        "fileType": { "$ref": "common.schema.json#/$defs/fileType" },
+        "tempFilePath": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300,
+          "pattern": "^(?!/)(?!.*(^|/)\\.\\.(/|$))[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*$",
+          "description": "Path RELATIVE to SPENDLY_UPLOAD_DIR, forward slashes, no '..'. Each service resolves it against its own upload dir (host path for the backend, /data/uploads in the pdf-parser container). Never contains the original filename."
+        },
+        "fileSha256": { "$ref": "common.schema.json#/$defs/sha256Hex" }
+      }
+    }
+  }
+}

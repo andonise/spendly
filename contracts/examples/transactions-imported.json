@@ -1,0 +1,66 @@
+{
+  "eventId": "d1b9123f-2a3c-4d4e-9f50-6b7c8d9e0f12",
+  "eventType": "TransactionsImported",
+  "schemaVersion": 1,
+  "occurredAt": "2026-09-01T08:15:09.120Z",
+  "correlationId": "upl-20260901-7c1e9a",
+  "producer": "spendly-pdf-parser",
+  "payload": {
+    "statementId": "9b2e4c71-5a3f-4d88-b1e0-6f7a2c9d3e15",
+    "accountId": "3f1c2a9e-7b4d-4e21-9a6f-0c5d8e2b1a47",
+    "parser": {
+      "name": "python-pdf-pdfplumber",
+      "version": "0.1.0"
+    },
+    "periodStart": "2026-08-01",
+    "periodEnd": "2026-08-31",
+    "currency": "RON",
+    "transactionCount": 4,
+    "transactions": [
+      {
+        "txHash": "d2cd57cb6c9ffea7bd5e42df3a035794ae2dc6dec08446f4e3b27fbd66be3909",
+        "sequence": 0,
+        "bookingDate": "2026-08-02",
+        "valueDate": "2026-08-02",
+        "amount": "-187.43",
+        "currency": "RON",
+        "description": "PLATA CARD ****1111 KAUFLAND 3412 IASI RO",
+        "counterpartyToken": null,
+        "counterpartyTokenKind": null
+      },
+      {
+        "txHash": "7e277809f1e982b33779ba69e53a94db11ab8fc3ced14bc33cfc376bd8ecb038",
+        "sequence": 1,
+        "bookingDate": "2026-08-02",
+        "valueDate": "2026-08-02",
+        "amount": "-12.50",
+        "currency": "RON",
+        "description": "PLATA CARD ****1111 STARBUCKS IASI",
+        "counterpartyToken": null,
+        "counterpartyTokenKind": null
+      },
+      {
+        "txHash": "08aa02f599329b9ca9704501763f9bd884ca1c340b93800669d481c116b48adf",
+        "sequence": 2,
+        "bookingDate": "2026-08-02",
+        "valueDate": "2026-08-02",
+        "amount": "-12.50",
+        "currency": "RON",
+        "description": "PLATA CARD ****1111 STARBUCKS IASI",
+        "counterpartyToken": null,
+        "counterpartyTokenKind": null
+      },
+      {
+        "txHash": "1e2d85ba87cd169a0e6844d1398d1f01bea5f2a5c913d6fa5f293c9de35bd7cc",
+        "sequence": 3,
+        "bookingDate": "2026-08-05",
+        "valueDate": null,
+        "amount": "-2200.00",
+        "currency": "RON",
+        "description": "TRANSFER CATRE [PERSON#4d37c156] RO**…0000 chirie august",
+        "counterpartyToken": "1c9ac67700000000000000000000000000000000000000000000000000000000",
+        "counterpartyTokenKind": "IBAN"
+      }
+    ]
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spendly.local/contracts/schemas/transactions-imported.schema.json",
+  "title": "TransactionsImported",
+  "description": "Published by a parser (Kotlin CSV parser or Python pdf-parser) after a statement was sanitized, parsed, normalized and validated. Topic: spendly.transactions-imported, key: accountId. Consumed by the backend import handler, which writes the transactions and moves the statement to PARSED. Contains NO balances (AC-SD-6) and only sanitized text.",
+  "allOf": [{ "$ref": "envelope.schema.json" }],
+  "properties": {
+    "eventType": { "const": "TransactionsImported" },
+    "schemaVersion": { "const": 1 },
+    "payload": {
+      "type": "object",
+      "required": ["statementId", "accountId", "parser", "periodStart", "periodEnd", "currency", "transactionCount", "transactions"],
+      "additionalProperties": false,
+      "properties": {
+        "statementId": { "$ref": "common.schema.json#/$defs/uuid" },
+        "accountId": { "$ref": "common.schema.json#/$defs/uuid" },
+        "parser": { "$ref": "common.schema.json#/$defs/parser" },
+        "periodStart": { "$ref": "common.schema.json#/$defs/isoDate", "description": "First day the statement covers (from the statement header/period, else the earliest booking date)" },
+        "periodEnd": { "$ref": "common.schema.json#/$defs/isoDate", "description": "Last day the statement covers (inclusive)" },
+        "currency": { "$ref": "common.schema.json#/$defs/currency", "description": "Statement/account currency" },
+        "transactionCount": { "type": "integer", "minimum": 0, "maximum": 5000, "description": "Must equal transactions.length" },
+        "transactions": {
+          "type": "array",
+          "maxItems": 5000,
+          "items": {
+            "type": "object",
+            "required": ["txHash", "sequence", "bookingDate", "amount", "currency", "description"],
+            "additionalProperties": false,
+            "properties": {
+              "txHash": { "$ref": "common.schema.json#/$defs/sha256Hex", "description": "Dedupe hash, see contracts/README.md 'Transaction hash'" },
+              "sequence": { "type": "integer", "minimum": 0, "description": "0-based position in the statement, in statement order" },
+              "bookingDate": { "$ref": "common.schema.json#/$defs/isoDate" },
+              "valueDate": { "anyOf": [{ "$ref": "common.schema.json#/$defs/isoDate" }, { "type": "null" }] },
+              "amount": { "$ref": "common.schema.json#/$defs/decimalAmount" },
+              "currency": { "$ref": "common.schema.json#/$defs/currency" },
+              "description": { "type": "string", "minLength": 1, "maxLength": 500, "description": "SANITIZED description (output of the shared sanitizer)" },
+              "counterpartyToken": {
+                "anyOf": [{ "$ref": "common.schema.json#/$defs/sha256Hex" }, { "type": "null" }],
+                "description": "Full 64-hex HMAC of the counterparty: the first 'iban' token found by the sanitizer, else the first 'person_name' token, else null"
+              },
+              "counterpartyTokenKind": { "anyOf": [{ "type": "string", "enum": ["IBAN", "PERSON"] }, { "type": "null" }] }
+            }
+          }
+        }
+      }
+    }
+  }
+}
