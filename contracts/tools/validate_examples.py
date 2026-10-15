@@ -20,6 +20,10 @@ SCHEMA_BY_EVENT = {
     "StatementUploaded": "statement-uploaded.schema.json",
     "TransactionsImported": "transactions-imported.schema.json",
     "StatementParseFailed": "statement-parse-failed.schema.json",
+    "StatementParsed": "statement-parsed.schema.json",
+    "InputRequired": "input-required.schema.json",
+    "AnswersSubmitted": "answers-submitted.schema.json",
+    "TransactionsChanged": "transactions-changed.schema.json",
 }
 
 

@@ -1,0 +1,9 @@
+{
+  "eventId": "a4ec4562-5d6f-4071-8283-9e0f1a2b3c45",
+  "eventType": "InputRequired",
+  "schemaVersion": 1,
+  "occurredAt": "2026-09-01T08:15:31.540Z",
+  "correlationId": "upl-20260901-7c1e9a",
+  "producer": "spendly-backend",
+  "payload": {"statementId": "9b2e4c71-5a3f-4d88-b1e0-6f7a2c9d3e15", "accountId": "3f1c2a9e-7b4d-4e21-9a6f-0c5d8e2b1a47", "questionCount": 2}
+}

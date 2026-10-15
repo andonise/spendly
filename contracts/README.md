@@ -11,6 +11,10 @@ made here first, then in every service at once.
 | `schemas/statement-uploaded.schema.json` | `StatementUploaded` event | backend → CSV parser, pdf-parser |
 | `schemas/transactions-imported.schema.json` | `TransactionsImported` event | CSV parser, pdf-parser → backend |
 | `schemas/statement-parse-failed.schema.json` | `StatementParseFailed` event | CSV parser, pdf-parser → backend |
+| `schemas/statement-parsed.schema.json` | `StatementParsed` event (Phase 3) | backend import handler → categorizer |
+| `schemas/input-required.schema.json` | `InputRequired` event (Phase 3) | backend → notifier |
+| `schemas/answers-submitted.schema.json` | `AnswersSubmitted` event (Phase 3) | backend → resume handler |
+| `schemas/transactions-changed.schema.json` | `TransactionsChanged` event (Phase 3+) | backend → transfer matcher, aggregator |
 | `examples/*.json` | One valid example per event (validated in CI-style check below) | tests, docs |
 | `pii-rules.json` | Sanitizer rules (data) | backend + pdf-parser sanitizers |
 | `fixtures/sanitizer-cases.json` | Inputs with exact expected sanitized output | both sanitizer test suites (AC-SD-4) |
@@ -28,6 +32,10 @@ and resolve `$id`s locally. **Never fetch `spendly.local` over the network.**
 | `spendly.statement-uploaded` | `StatementUploaded` | accountId | backend (outbox) | `spendly-backend-csv-parser`, `spendly-pdf-parser` |
 | `spendly.transactions-imported` | `TransactionsImported` | accountId | CSV parser, pdf-parser | `spendly-backend-import` |
 | `spendly.statement-parse-failed` | `StatementParseFailed` | accountId | CSV parser, pdf-parser | `spendly-backend-import` |
+| `spendly.statement-parsed` | `StatementParsed` | accountId | backend import handler (outbox) | `spendly-backend-categorizer` |
+| `spendly.input-required` | `InputRequired` | accountId | backend categorizer / resume handler | `spendly-backend-notifier` |
+| `spendly.answers-submitted` | `AnswersSubmitted` | accountId | backend answers API | `spendly-backend-resume` |
+| `spendly.transactions-changed` | `TransactionsChanged` | `accountIds[0]` | backend (categorizer, resume, transfer matcher, counterparty labels) | `spendly-backend-transfer-matcher` (Phase 3), `spendly-backend-aggregator` (Phase 4) |
 | `<topic>.dlq` | original message, unchanged | same key | whoever gave up on it | `spendly-backend-dlq` (moves the statement to `FAILED`) |
 
 Topics are created by the `redpanda-init` service in `docker-compose.yml` (3 partitions, 24 h retention).

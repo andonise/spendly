@@ -10,7 +10,10 @@
     "eventId": { "$ref": "common.schema.json#/$defs/uuid", "description": "Unique per event; consumers dedupe on (eventId, consumer) in processed_events" },
     "eventType": {
       "type": "string",
-      "enum": ["StatementUploaded", "TransactionsImported", "StatementParseFailed"]
+      "enum": [
+        "StatementUploaded", "TransactionsImported", "StatementParseFailed",
+        "StatementParsed", "InputRequired", "AnswersSubmitted", "TransactionsChanged"
+      ]
     },
     "schemaVersion": { "type": "integer", "minimum": 1, "description": "Version of the payload schema for this eventType" },
     "occurredAt": { "$ref": "common.schema.json#/$defs/isoDateTime" },

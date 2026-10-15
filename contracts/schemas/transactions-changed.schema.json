@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spendly.local/contracts/schemas/transactions-changed.schema.json",
+  "title": "TransactionsChanged",
+  "description": "Announces that categorized, report-relevant transactions changed for some accounts and dates. Written to the outbox in the same transaction as the change. Topic: spendly.transactions-changed, key: accountIds[0] (the account whose change caused the event). Consumers: transfer matcher (group spendly-backend-transfer-matcher, re-runs pair matching for the OTHER accounts), aggregator (Phase 4, group spendly-backend-aggregator).",
+  "allOf": [{ "$ref": "envelope.schema.json" }],
+  "properties": {
+    "eventType": { "const": "TransactionsChanged" },
+    "schemaVersion": { "const": 1 },
+    "producer": { "const": "spendly-backend" },
+    "payload": {
+      "type": "object",
+      "required": ["accountIds", "fromDate", "toDate", "cause", "statementId"],
+      "additionalProperties": false,
+      "properties": {
+        "accountIds": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "common.schema.json#/$defs/uuid" },
+          "description": "First item = the account whose change caused the event; a transfer pair lists both accounts"
+        },
+        "fromDate": { "$ref": "common.schema.json#/$defs/isoDate" },
+        "toDate": { "$ref": "common.schema.json#/$defs/isoDate", "description": "Inclusive; >= fromDate" },
+        "cause": {
+          "type": "string",
+          "enum": ["STATEMENT_CATEGORIZED", "TRANSFER_MATCHED", "TRANSFER_ANSWERED", "COUNTERPARTY_LABELLED", "MANUAL_CORRECTION", "STATEMENT_DELETED"]
+        },
+        "statementId": {
+          "anyOf": [{ "$ref": "common.schema.json#/$defs/uuid" }, { "type": "null" }],
+          "description": "The statement that caused it, when there is one (STATEMENT_CATEGORIZED); else null"
+        }
+      }
+    }
+  }
+}

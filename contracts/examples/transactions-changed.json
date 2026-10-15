@@ -1,0 +1,9 @@
+{
+  "eventId": "c60e6784-7f81-4293-a4a5-1a2b3c4d5e67",
+  "eventType": "TransactionsChanged",
+  "schemaVersion": 1,
+  "occurredAt": "2026-09-01T08:20:09.880Z",
+  "correlationId": "upl-20260901-7c1e9a",
+  "producer": "spendly-backend",
+  "payload": {"accountIds": ["3f1c2a9e-7b4d-4e21-9a6f-0c5d8e2b1a47", "8c4d1e2f-3a5b-4c6d-9e7f-1a2b3c4d5e6f"], "fromDate": "2026-08-10", "toDate": "2026-08-11", "cause": "TRANSFER_MATCHED", "statementId": null}
+}
