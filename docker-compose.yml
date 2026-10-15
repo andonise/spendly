@@ -93,32 +93,35 @@ services:
       start_period: 10s
 
   # --- Phase 2: Python PDF parser (owned by pdf-parser/) -------------------
-  # pdf-parser:
-  #   build: ./pdf-parser
-  #   restart: unless-stopped
-  #   depends_on:
-  #     redpanda:
-  #       condition: service_healthy
-  #   env_file: .env
-  #   environment:
-  #     KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
-  #     OLLAMA_BASE_URL: http://host.docker.internal:11434
-  #     SPENDLY_UPLOAD_DIR: /data/uploads
-  #     SPENDLY_HMAC_SECRET_PATH: /run/secrets/hmac.key
-  #     SPENDLY_CONTRACTS_DIR: /contracts
-  #   volumes:
-  #     - ${SPENDLY_UPLOAD_DIR:?set SPENDLY_UPLOAD_DIR in .env}:/data/uploads
-  #     - ${SPENDLY_HMAC_SECRET_PATH:?set SPENDLY_HMAC_SECRET_PATH in .env}:/run/secrets/hmac.key:ro
-  #     - ./contracts:/contracts:ro
-  #   ports:
-  #     - "${PDF_PARSER_PORT:-8090}:8090"
-  #   extra_hosts:
-  #     - "host.docker.internal:host-gateway"
-  #   healthcheck:
-  #     test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8090/health').status==200 else 1)\""]
-  #     interval: 10s
-  #     timeout: 5s
-  #     retries: 12
+  pdf-parser:
+    build: ./pdf-parser
+    restart: unless-stopped
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      SPENDLY_UPLOAD_DIR: /data/uploads
+      SPENDLY_HMAC_SECRET_PATH: /run/secrets/hmac.key
+      SPENDLY_CONTRACTS_DIR: /contracts
+      PDF_PARSER_PORT: "8090"   # container port is fixed; the host port comes from .env below
+    volumes:
+      - ${SPENDLY_UPLOAD_DIR:?set SPENDLY_UPLOAD_DIR in .env}:/data/uploads
+      - ${SPENDLY_HMAC_SECRET_PATH:?set SPENDLY_HMAC_SECRET_PATH in .env}:/run/secrets/hmac.key:ro
+      - ./contracts:/contracts:ro
+    ports:
+      - "${PDF_PARSER_PORT:-8090}:8090"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    stop_grace_period: 40s
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8090/health').status==200 else 1)\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
 
 volumes:
   postgres-data:
