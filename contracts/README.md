@@ -44,9 +44,16 @@ Topics are created by the `redpanda-init` service in `docker-compose.yml` (3 par
   transaction as their effect. The pdf-parser has no DB: it is idempotent by construction (same input
   file → same `TransactionsImported` content), commits its Kafka offset only after publishing, and
   the backend import handler dedupes on `statementId` + status guard (`UPDATE … WHERE status = 'UPLOADED'`).
-- **Retries:** transient errors retry with exponential backoff (1 s, 2 s, 4 s; 3 attempts), then DLQ.
-  Business failures (balance mismatch, unsupported layout) are **not** retried: publish
-  `StatementParseFailed` instead.
+- **Retries:** transient errors get the initial attempt plus 3 retries (after 1 s, 2 s, 4 s; 4 attempts in
+  total), then go to the DLQ. Business failures (balance mismatch, unsupported layout) are **not** retried:
+  publish `StatementParseFailed` instead.
+- **`dlqReason` values:** `INVALID_JSON` (value is not JSON), `SCHEMA_VALIDATION` (fails its schema),
+  `UNSAFE_TEMP_FILE_PATH` (`tempFilePath` escapes the upload folder; this goes to the DLQ, not to
+  `StatementParseFailed`), `RETRIES_EXHAUSTED` (transient error after all retries). The backend DLQ
+  consumer moves the statement to `FAILED` (only from `UPLOADED`) when the message carries a known
+  `statementId`; otherwise it only logs the IDs.
+- **Unknown statement:** an event for a `statementId` the backend doesn't have is logged (IDs only),
+  recorded in `processed_events`, and skipped. It is not dead-lettered.
 - **Logs** contain IDs only (eventId, statementId, accountId, correlationId), never descriptions,
   amounts or tokens.
 
@@ -69,10 +76,23 @@ txHash = lowercase hex SHA-256 of UTF-8 bytes of
 ```
 
 - Fields joined with `|`; `amount` is the canonical decimal string (`-45.20`); `description` is the
-  **sanitized** description; `occurrence` is the 0-based count of earlier rows in the **same file** with the
+  **final** description exactly as sent in the event (see "Description" below); `occurrence` is the 0-based count of earlier rows in the **same file** with the
   same `(bookingDate, amount, currency, description)`. Two identical coffees on one day hash differently,
   and the same day re-imported from another file produces the same two hashes.
 - The backend inserts with `ON CONFLICT (account_id, tx_hash) DO NOTHING`.
+
+### Description
+
+Both parsers build the event `description` (and hash it) the same way:
+
+1. `s = sanitize(raw).text`
+2. If `s` is longer than 500 **Unicode code points**, keep the first 500 code points (Kotlin: use
+   `codePointCount`/`offsetByCodePoints`, not `String.length`, which counts UTF-16 units).
+3. Trim leading/trailing spaces.
+4. If the result is empty, use `N/A`.
+
+A fee row's description is `"FEE " + <final description of the main row>`, then steps 2–4 again.
+A fee row's `counterpartyToken` and `counterpartyTokenKind` are always `null` (the fee goes to the bank).
 
 ### Amounts
 
