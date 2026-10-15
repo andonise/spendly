@@ -1,0 +1,43 @@
+[project]
+name = "spendly-pdf-parser"
+version = "0.1.0"
+description = "Spendly PDF statement parser: sanitizes, parses and validates PDF bank statements and publishes TransactionsImported events."
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "pdfplumber==0.11.10",
+    "confluent-kafka==2.15.1",
+    "fastapi==0.142.2",
+    "uvicorn==0.54.0",
+    "jsonschema==4.26.0",
+    "referencing==0.37.0",
+    "pydantic-settings==2.15.0",
+    "python-multipart==0.0.32",
+]
+
+[dependency-groups]
+dev = ["pytest==9.1.1", "httpx==0.28.1"]
+
+[project.scripts]
+spendly-pdf-parser = "spendly_pdf_parser.__main__:main"
+
+[build-system]
+requires = ["hatchling==1.27.0"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+exclude-newer = "2026-10-01T00:00:00Z"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+filterwarnings = [
+    # starlette 1.x suggests httpx2 for TestClient; httpx 0.28.1 still works
+    "ignore:Using `httpx` with `starlette.testclient` is deprecated",
+]
+markers = [
+    "integration: needs the compose Redpanda on localhost:19092 and a running pdf-parser (skipped otherwise)",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/spendly_pdf_parser"]
