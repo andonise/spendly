@@ -22,8 +22,8 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 300,
-          "pattern": "^(?!/)(?!.*(^|/)\\.\\.(/|$))[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*$",
-          "description": "Path RELATIVE to SPENDLY_UPLOAD_DIR, forward slashes, no '..'. Each service resolves it against its own upload dir (host path for the backend, /data/uploads in the pdf-parser container). Never contains the original filename."
+          "pattern": "^(?!/)(?!.*(^|/)\\.\\.?(/|$))[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*$",
+          "description": "Path RELATIVE to SPENDLY_UPLOAD_DIR, forward slashes, no '.' or '..' segments. Each service resolves it against its own upload dir (host path for the backend, /data/uploads in the pdf-parser container). Never contains the original filename."
         },
         "fileSha256": { "$ref": "common.schema.json#/$defs/sha256Hex" }
       }

@@ -190,6 +190,11 @@ paths:
       tags: [statements]
       operationId: retryStatement
       summary: Retry a FAILED statement from statements.last_completed_step
+      description: |
+        The returned statement's `status` is where processing resumes: `UPLOADED` when nothing was
+        completed (re-parse; needs the original file, else 409 `ORIGINAL_FILE_DELETED`), `PARSED` or
+        later when a later step was completed (e.g. a missing FX rate filled in). The client then
+        follows the status as usual.
       responses:
         '202':
           description: Retry scheduled
@@ -272,11 +277,12 @@ paths:
     get:
       tags: [questions]
       operationId: listOpenQuestions
-      summary: All open questions, including TRANSFER questions not tied to one statement
+      summary: Questions (OPEN by default), including TRANSFER questions not tied to one statement
       parameters:
         - name: status
           in: query
           required: false
+          description: Defaults to OPEN when omitted
           schema: { $ref: '#/components/schemas/QuestionStatus' }
       responses:
         '200':
@@ -422,7 +428,11 @@ components:
         code:
           type: string
           example: BALANCE_MISMATCH
-          description: StatementParseFailed.reason, or DLQ / INTERNAL_ERROR
+          description: |
+            Open set; clients show `message` for unknown codes. Known values:
+            the StatementParseFailed reasons (BALANCE_MISMATCH, UNSUPPORTED_LAYOUT, NO_TRANSACTIONS,
+            FILE_NOT_FOUND, FILE_UNREADABLE, SCHEMA_VALIDATION, INTERNAL_ERROR), FX_RATE_MISSING
+            (no BNR rate for a booking date; retry after importing rates), DLQ (gave up after retries).
         message: { type: string }
         retryable: { type: boolean }
 
@@ -443,7 +453,10 @@ components:
 
     StatementSummary:
       type: object
-      description: Present once the statement is CATEGORIZED (null before)
+      description: |
+        Present once the statement is CATEGORIZED (null before). All amounts are in the base currency
+        and are absolute (non-negative) values. `spendBase` and `incomeBase` exclude INTERNAL transfers.
+        `byCategory` lists spending categories plus INCOME, never INTERNAL_TRANSFER.
       required: [transactionCount, spendBase, incomeBase, internalTransferCount, byCategory]
       properties:
         transactionCount: { type: integer }
@@ -538,7 +551,9 @@ components:
 
     Answer:
       type: object
-      description: Exactly one of `category` or `skip=true`. Skip maps to OTHER and never blocks the flow.
+      description: |
+        Exactly one of `category` or `skip=true`. With `skip=true`, `category` may be omitted or null.
+        Skip maps to OTHER and never blocks the flow.
       properties:
         category:
           allOf: [{ $ref: '#/components/schemas/Category' }]
