@@ -19,6 +19,8 @@ tags:
   - name: accounts
   - name: statements
   - name: questions
+  - name: transactions
+  - name: counterparties
 
 paths:
   /api/accounts:
@@ -318,6 +320,89 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
 
+  /api/transactions:
+    get:
+      tags: [transactions]
+      operationId: listTransactions
+      summary: Filterable, paged transaction list (descriptions are sanitized plaintext)
+      parameters:
+        - { name: accountId, in: query, required: false, schema: { type: string, format: uuid } }
+        - { name: statementId, in: query, required: false, schema: { type: string, format: uuid } }
+        - { name: from, in: query, required: false, schema: { type: string, format: date }, description: 'Booking date >= from' }
+        - { name: to, in: query, required: false, schema: { type: string, format: date }, description: 'Booking date <= to (inclusive)' }
+        - { name: category, in: query, required: false, schema: { $ref: '#/components/schemas/Category' } }
+        - { name: transferStatus, in: query, required: false, schema: { $ref: '#/components/schemas/TransferStatus' } }
+        - { name: page, in: query, required: false, schema: { type: integer, minimum: 0, default: 0 } }
+        - { name: size, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+        - name: sort
+          in: query
+          required: false
+          schema: { type: string, enum: ['bookingDate,desc', 'bookingDate,asc', 'amount,desc', 'amount,asc'], default: 'bookingDate,desc' }
+      responses:
+        '200':
+          description: One page of transactions
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TransactionPage' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+  /api/transactions/{transactionId}:
+    parameters:
+      - { name: transactionId, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [transactions]
+      operationId: getTransaction
+      responses:
+        '200':
+          description: The transaction
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Transaction' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/counterparties:
+    get:
+      tags: [counterparties]
+      operationId: listCounterparties
+      summary: Counterparties seen in transactions (pseudonymized), with optional user labels
+      responses:
+        '200':
+          description: Counterparties, most recently seen first
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Counterparty' }
+
+  /api/counterparties/{token}:
+    parameters:
+      - name: token
+        in: path
+        required: true
+        schema: { type: string, pattern: '^[0-9a-f]{64}$' }
+    put:
+      tags: [counterparties]
+      operationId: updateCounterparty
+      summary: Label a counterparty and/or mark it as one of your own accounts
+      description: |
+        Setting `isOwnAccount` re-runs transfer detection for that counterparty's transactions
+        (step 4 in plan section 10): matching CANDIDATE/NONE transactions become INTERNAL, or back to
+        their previous state when unset. Any change publishes TransactionsChanged
+        (cause COUNTERPARTY_LABELLED) for the affected accounts and dates.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CounterpartyUpdate' }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Counterparty' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
 components:
   parameters:
     AccountId:
@@ -554,6 +639,11 @@ components:
       description: |
         Exactly one of `category` or `skip=true`. With `skip=true`, `category` may be omitted or null.
         Skip maps to OTHER and never blocks the flow.
+
+        TRANSFER questions ("Is this a transfer to one of your accounts?"): `category: INTERNAL_TRANSFER`
+        means yes (the transaction becomes INTERNAL); any other category means no (EXTERNAL with that
+        category); skip means EXTERNAL + OTHER. `applyToFuture` on a TRANSFER answer marks the
+        counterparty as own account (when the transaction has a counterparty token).
       properties:
         category:
           allOf: [{ $ref: '#/components/schemas/Category' }]
@@ -578,6 +668,74 @@ components:
           type: array
           minItems: 1
           items: { $ref: '#/components/schemas/AnswerItem' }
+
+    TransferStatus:
+      type: string
+      enum: [NONE, CANDIDATE, INTERNAL, EXTERNAL]
+      description: INTERNAL = between your own accounts (excluded from all totals); CANDIDATE = looks like one, unconfirmed (excluded, shown as "unconfirmed transfer")
+
+    CategorySource:
+      type: string
+      enum: [RULE, EMBEDDING, LLM, USER, TRANSFER_MATCH]
+
+    CounterpartyRef:
+      type: object
+      required: [token, isOwnAccount]
+      properties:
+        token: { type: string, pattern: '^[0-9a-f]{64}$', description: 'HMAC token (IBAN or person); never the raw value' }
+        kind: { type: string, enum: [IBAN, PERSON], nullable: true }
+        label: { type: string, nullable: true, example: Landlord }
+        isOwnAccount: { type: boolean }
+        ownAccountId: { type: string, format: uuid, nullable: true, description: 'Set when the token equals a registered account''s iban_hash' }
+
+    Transaction:
+      type: object
+      required: [id, accountId, statementId, bookingDate, amount, currency, description, transferStatus]
+      properties:
+        id: { type: string, format: uuid }
+        accountId: { type: string, format: uuid }
+        accountLabel: { type: string }
+        statementId: { type: string, format: uuid }
+        bookingDate: { type: string, format: date }
+        amount: { $ref: '#/components/schemas/Money' }
+        currency: { $ref: '#/components/schemas/Currency' }
+        amountBase: { allOf: [{ $ref: '#/components/schemas/Money' }], nullable: true }
+        fxRate: { type: string, nullable: true, example: '4.9731' }
+        description: { type: string, description: Sanitized description }
+        category: { allOf: [{ $ref: '#/components/schemas/Category' }], nullable: true }
+        categorySource: { allOf: [{ $ref: '#/components/schemas/CategorySource' }], nullable: true }
+        confidence: { type: number, minimum: 0, maximum: 1, nullable: true }
+        transferStatus: { $ref: '#/components/schemas/TransferStatus' }
+        transferPairId: { type: string, format: uuid, nullable: true }
+        pairedTransactionId: { type: string, format: uuid, nullable: true, description: 'The other side of the transfer pair, for the "Transfer" badge link' }
+        counterparty: { allOf: [{ $ref: '#/components/schemas/CounterpartyRef' }], nullable: true }
+
+    TransactionPage:
+      type: object
+      required: [items, page, size, totalItems, totalPages]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/Transaction' } }
+        page: { type: integer }
+        size: { type: integer }
+        totalItems: { type: integer }
+        totalPages: { type: integer }
+
+    Counterparty:
+      allOf:
+        - $ref: '#/components/schemas/CounterpartyRef'
+        - type: object
+          required: [transactionCount]
+          properties:
+            transactionCount: { type: integer }
+            lastSeen: { type: string, format: date, nullable: true }
+            sampleDescription: { type: string, nullable: true, description: 'One sanitized description, to help the user recognise it' }
+
+    CounterpartyUpdate:
+      type: object
+      required: [isOwnAccount]
+      properties:
+        label: { type: string, maxLength: 80, nullable: true }
+        isOwnAccount: { type: boolean }
 
     Problem:
       type: object

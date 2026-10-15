@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spendly.local/contracts/schemas/input-required.schema.json",
+  "title": "InputRequired",
+  "description": "Written to the outbox by the categorizer (or resume handler) in the same transaction that moves a statement to NEEDS_INPUT. Topic: spendly.input-required, key: accountId. Consumed by the backend notifier (group spendly-backend-notifier), which pushes SSE.",
+  "allOf": [{ "$ref": "envelope.schema.json" }],
+  "properties": {
+    "eventType": { "const": "InputRequired" },
+    "schemaVersion": { "const": 1 },
+    "producer": { "const": "spendly-backend" },
+    "payload": {
+      "type": "object",
+      "required": ["statementId", "accountId", "questionCount"],
+      "additionalProperties": false,
+      "properties": {
+        "statementId": { "$ref": "common.schema.json#/$defs/uuid" },
+        "accountId": { "$ref": "common.schema.json#/$defs/uuid" },
+        "questionCount": { "type": "integer", "minimum": 1 }
+      }
+    }
+  }
+}
