@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spendly.local/contracts/schemas/answers-submitted.schema.json",
+  "title": "AnswersSubmitted",
+  "description": "Written to the outbox by POST /api/statements/{id}/answers in the same transaction that stores the answers and moves the statement NEEDS_INPUT -> CATEGORIZING. Topic: spendly.answers-submitted, key: accountId. Consumed by the backend resume handler (group spendly-backend-resume). The answers themselves are read from the DB, never carried in the event.",
+  "allOf": [{ "$ref": "envelope.schema.json" }],
+  "properties": {
+    "eventType": { "const": "AnswersSubmitted" },
+    "schemaVersion": { "const": 1 },
+    "producer": { "const": "spendly-backend" },
+    "payload": {
+      "type": "object",
+      "required": ["statementId", "accountId", "answerCount"],
+      "additionalProperties": false,
+      "properties": {
+        "statementId": { "$ref": "common.schema.json#/$defs/uuid" },
+        "accountId": { "$ref": "common.schema.json#/$defs/uuid" },
+        "answerCount": { "type": "integer", "minimum": 1 }
+      }
+    }
+  }
+}

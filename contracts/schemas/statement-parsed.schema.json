@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spendly.local/contracts/schemas/statement-parsed.schema.json",
+  "title": "StatementParsed",
+  "description": "Written to the outbox by the backend import handler in the same transaction that moves a statement to PARSED (or by a retry that resumes after PARSE). Topic: spendly.statement-parsed, key: accountId. Consumed by the backend categorizer (group spendly-backend-categorizer), which runs transfer detection and then categorization.",
+  "allOf": [{ "$ref": "envelope.schema.json" }],
+  "properties": {
+    "eventType": { "const": "StatementParsed" },
+    "schemaVersion": { "const": 1 },
+    "producer": { "const": "spendly-backend" },
+    "payload": {
+      "type": "object",
+      "required": ["statementId", "accountId", "periodStart", "periodEnd", "transactionCount"],
+      "additionalProperties": false,
+      "properties": {
+        "statementId": { "$ref": "common.schema.json#/$defs/uuid" },
+        "accountId": { "$ref": "common.schema.json#/$defs/uuid" },
+        "periodStart": { "$ref": "common.schema.json#/$defs/isoDate" },
+        "periodEnd": { "$ref": "common.schema.json#/$defs/isoDate" },
+        "transactionCount": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}
