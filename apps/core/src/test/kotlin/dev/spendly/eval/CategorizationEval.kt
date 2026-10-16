@@ -116,6 +116,15 @@ class CategorizationEval {
         confusions.forEach { println("  confusion ${it["confusion"]} x${it["count"]}: ${it["examples"]}") }
         questions.forEach { println("  question [${it.row.expected}] ${it.row.description} :: ${it.question}") }
         println("report    $out")
+
+        // Optional gates (CI runs the rule-only eval with them): -PminAccuracy=0.9 -PminCoverage=0.8
+        System.getProperty("spendly.eval.min-accuracy")?.toDouble()?.let { min ->
+            val accuracy = if (auto.isEmpty()) 0.0 else ratio(correct, auto.size)
+            check(accuracy >= min) { "Accuracy ${pct(correct, auto.size)} is below the minimum ${"%.1f%%".format(min * 100)}" }
+        }
+        System.getProperty("spendly.eval.min-coverage")?.toDouble()?.let { min ->
+            check(ratio(auto.size, rows.size) >= min) { "Coverage ${pct(auto.size, rows.size)} is below the minimum ${"%.1f%%".format(min * 100)}" }
+        }
     }
 
     private fun readGolden(path: Path): List<Row> {

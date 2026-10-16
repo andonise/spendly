@@ -4,6 +4,7 @@ plugins {
 	id("org.springframework.boot") version "4.1.1"
 	id("io.spring.dependency-management") version "1.1.7"
 	kotlin("plugin.jpa") version "2.3.21"
+	jacoco
 }
 
 group = "dev.spendly"
@@ -101,11 +102,39 @@ tasks.named<Test>("test") {
 	useJUnitPlatform {
 		excludeTags("eval")
 	}
+	finalizedBy(tasks.jacocoTestReport)
+}
+
+// Coverage: report after every test run (build/reports/jacoco/test/html/index.html); `check` fails below 80% lines.
+tasks.jacocoTestReport {
+	dependsOn(tasks.test)
+	reports {
+		xml.required = true
+		html.required = true
+	}
+}
+
+tasks.jacocoTestCoverageVerification {
+	dependsOn(tasks.test)
+	violationRules {
+		rule {
+			limit {
+				counter = "LINE"
+				value = "COVEREDRATIO"
+				minimum = "0.80".toBigDecimal()
+			}
+		}
+	}
+}
+
+tasks.check {
+	dependsOn(tasks.jacocoTestCoverageVerification)
 }
 
 /**
  * Categorization accuracy against the real Ollama models on a fresh Testcontainers pgvector DB (system seed only,
  * no user learning). Usage: .\gradlew.bat evalCategorization [-Pgolden=<csv>] [-PnoSeed=true] [-PllmOff=true]
+ * [-PminAccuracy=0.9] [-PminCoverage=0.8] (fail below these; CI runs the rule-only eval with them)
  * Writes build/reports/categorization-eval.json.
  */
 tasks.register<Test>("evalCategorization") {
@@ -122,6 +151,8 @@ tasks.register<Test>("evalCategorization") {
 	systemProperty("spendly.eval.llm-off", (project.findProperty("llmOff") as String?) ?: "false")
 	systemProperty("spendly.eval.report", layout.buildDirectory.file("reports/categorization-eval.json").get().asFile.absolutePath)
 	(project.findProperty("ollamaBaseUrl") as String?)?.let { systemProperty("spendly.eval.ollama-base-url", it) }
+	(project.findProperty("minAccuracy") as String?)?.let { systemProperty("spendly.eval.min-accuracy", it) }
+	(project.findProperty("minCoverage") as String?)?.let { systemProperty("spendly.eval.min-coverage", it) }
 	// Threshold overrides for tuning, e.g. -Pspendly.categorization.confidence-threshold=0.8
 	project.properties.filterKeys { it.startsWith("spendly.") }.forEach { (k, v) -> systemProperty(k, v.toString()) }
 	outputs.upToDateWhen { false }
