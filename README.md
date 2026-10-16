@@ -70,15 +70,34 @@ Secrets never go in git: `.env` is ignored, and the HMAC key file referenced by
 | Redpanda Console | http://localhost:8088 |
 | Ollama (host) | http://localhost:11434 |
 
-## Tests
+## Tests and CI
+
+Every app fails its test run when line coverage drops below **80%**, locally and in CI.
 
 ```bash
-cd apps/core && ./gradlew test                 # unit + integration (Testcontainers) + module boundaries
-cd apps/core && ./gradlew evalCategorization   # categorization accuracy on eval/golden
-cd apps/web && npm test                        # Vitest
-cd apps/pdf-parser && uv run pytest
+cd apps/core && ./gradlew check                # unit + integration (Testcontainers) + module boundaries + coverage gate
+cd apps/core && ./gradlew evalCategorization   # categorization accuracy on eval/golden (needs Ollama)
+cd apps/web && npm test                        # Vitest + coverage gate
+cd apps/pdf-parser && uv run pytest            # pytest + coverage gate (--no-cov for a quick single test)
 uv run --with jsonschema --with referencing python contracts/tools/validate_examples.py   # contract examples
 ```
+
+Coverage reports: `apps/core/build/reports/jacoco/test/html/`, `apps/web/coverage/web/`, `apps/pdf-parser/coverage.xml`.
+
+GitHub Actions (`.github/workflows/`) runs on every push and pull request. Each workflow starts only when its
+files change; there is no deployment.
+
+| Workflow | Runs when | Checks |
+|---|---|---|
+| `core` | `apps/core`, `contracts`, `samples`, `eval` change | `./gradlew check` (tests, module boundaries, 80% lines), rule-only categorization eval (accuracy ≥ 95%, coverage ≥ 75%) |
+| `web` | `apps/web` changes | tests with 80% lines, production build |
+| `pdf-parser` | `apps/pdf-parser`, `contracts`, `samples` change | tests with 80% lines, container image build |
+| `contracts` | `contracts` changes | every event example validates against its schema |
+| `secrets` | every push | gitleaks scans the whole git history (`.gitleaks.toml`) |
+
+Each run shows a coverage table in its summary and keeps the reports as downloadable artifacts for 14 days.
+CI has no Ollama: the tests use fake LLM clients, and the LLM eval stays a manual run.
+Dependabot (`.github/dependabot.yml`) opens weekly update PRs, only for versions at least 14 days old.
 
 ## Privacy rules
 

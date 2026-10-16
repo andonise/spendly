@@ -1,0 +1,61 @@
+# Python PDF parser: tests with coverage gate, container image build.
+name: pdf-parser
+
+on:
+  push:
+    branches: [main]
+    paths: &paths
+      - "apps/pdf-parser/**"
+      - "contracts/**"
+      - "samples/**"
+      - ".github/workflows/pdf-parser.yml"
+  pull_request:
+    paths: *paths
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: test, coverage, image
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: apps/pdf-parser
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: "0.12.21"
+          python-version: "3.12"
+          enable-cache: true
+          cache-dependency-glob: apps/pdf-parser/uv.lock
+
+      - name: Install (exactly as locked)
+        run: uv sync --locked
+
+      # Coverage gate: 80% of lines (pyproject.toml). The Kafka integration test skips itself without Redpanda.
+      - name: Test and coverage gate
+        run: uv run pytest
+
+      - name: Container image builds
+        run: docker build --tag spendly-pdf-parser:ci .
+
+      - name: Coverage summary
+        if: always()
+        run: python3 ../../.github/scripts/coverage_summary.py pdf-parser coverage.xml >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: pdf-parser-coverage
+          path: apps/pdf-parser/coverage.xml
+          retention-days: 14

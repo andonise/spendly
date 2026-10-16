@@ -1,0 +1,69 @@
+# Kotlin core service: build, all tests (Testcontainers), module boundaries, coverage gate, rule-only eval.
+name: core
+
+on:
+  push:
+    branches: [main]
+    paths: &paths
+      - "apps/core/**"
+      - "contracts/**"
+      - "samples/**"
+      - "eval/**"
+      - ".github/workflows/core.yml"
+  pull_request:
+    paths: *paths
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: build, test, coverage
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: apps/core
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      # Also validates the Gradle wrapper checksum.
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+
+      # test + ModularityTest + JaCoCo report + coverage gate (80% of lines, see build.gradle.kts).
+      # Docker is available on GitHub's Ubuntu runners, so Testcontainers starts Postgres and Redpanda.
+      # There is no Ollama in CI: the tests use fake LLM and embedding clients.
+      - name: Build, test and coverage gate
+        run: ./gradlew check --console=plain
+
+      # Rules only (no LLM), so the result is deterministic: catches a broken rule or merchant seed.
+      - name: Categorization eval (rules only)
+        run: >-
+          ./gradlew evalCategorization --console=plain
+          -PllmOff=true -PollamaBaseUrl=http://localhost:1
+          -PminAccuracy=0.95 -PminCoverage=0.75
+
+      - name: Coverage summary
+        if: always()
+        run: python3 ../../.github/scripts/coverage_summary.py core build/reports/jacoco/test/jacocoTestReport.xml >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload test and coverage reports
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: core-reports
+          path: |
+            apps/core/build/reports/tests/
+            apps/core/build/reports/jacoco/
+            apps/core/build/reports/categorization-eval.json
+          retention-days: 14
