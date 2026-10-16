@@ -1,0 +1,12 @@
+# Secret scanning (CI: .github/workflows/secrets.yml). Default gitleaks rules, plus one narrow exception.
+[extend]
+useDefault = true
+
+# The sanitizer fixtures list expected HMAC tokens of synthetic data, computed with the public fixture key
+# in that file ("spendly-fixture-secret-not-for-production"). Only these token lines, in this file, are allowed.
+[[allowlists]]
+description = "Expected HMAC tokens in the shared sanitizer fixtures"
+condition = "AND"
+paths = ['''(^|/)contracts/fixtures/sanitizer-cases\.json$''']
+regexTarget = "line"
+regexes = ['''^\s*"token": "[0-9a-f]{64}",?$''']
