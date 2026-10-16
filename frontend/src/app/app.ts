@@ -38,7 +38,9 @@ export class App implements OnInit {
     { path: '/accounts', label: 'Accounts', icon: 'account_balance' },
     { path: '/upload', label: 'Upload', icon: 'upload_file' },
     { path: '/statements', label: 'Statements', icon: 'receipt_long' },
+    { path: '/questions', label: 'Questions', icon: 'help' },
     { path: '/transactions', label: 'Transactions', icon: 'list_alt' },
+    { path: '/counterparties', label: 'Counterparties', icon: 'group' },
     { path: '/learning', label: 'Learning', icon: 'school' },
     { path: '/chat', label: 'Chat', icon: 'forum' },
   ];

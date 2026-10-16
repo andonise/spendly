@@ -8,6 +8,8 @@ export const environment: Environment = {
     accounts: false,
     statements: false,
     questions: false,
+    transactions: false,
+    counterparties: false,
   },
   mockOptions: {
     latencyMs: 0,

@@ -23,7 +23,7 @@ export function provideMockApiForTests(
 ): (Provider | EnvironmentProviders)[] {
   const env: Environment = {
     ...environment,
-    mock: { accounts: true, statements: true, questions: true },
+    mock: { accounts: true, statements: true, questions: true, transactions: true, counterparties: true },
     mockOptions: { latencyMs: 0, stepMs: options.stepMs ?? 1000 },
     pollIntervalMs: options.pollIntervalMs ?? 2000,
   };

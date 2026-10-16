@@ -1,0 +1,114 @@
+<h1 class="page-title">Questions</h1>
+<p class="page-subtitle">Transactions Spendly couldn't decide on its own. Answers are remembered.</p>
+
+@if (notice(); as n) {
+  <p class="notice" role="status"><mat-icon aria-hidden="true">info</mat-icon> {{ n }}</p>
+}
+
+@if (loading()) {
+  <mat-progress-bar mode="indeterminate" />
+} @else if (questions().length === 0) {
+  <app-empty-state icon="task_alt" title="Nothing needs your input" message="New questions appear here when a statement or a possible transfer needs a decision.">
+    <a mat-stroked-button routerLink="/transactions">View transactions</a>
+  </app-empty-state>
+} @else {
+  @if (transferQuestions().length) {
+    <section class="section" aria-labelledby="transfer-heading">
+      <h2 id="transfer-heading">Possible transfers between your accounts</h2>
+      <p class="muted">These aren't tied to one statement: no matching transaction was found in your other accounts.</p>
+
+      @for (q of transferQuestions(); track q.id) {
+        @let st = state(q.id);
+        @let cp = counterparties()[q.id];
+        <mat-card appearance="outlined" class="question transfer" [class.focused]="focus() === q.id" [attr.data-question-id]="q.id">
+          <mat-card-content>
+            <div class="txn">
+              <div class="txn-main">
+                <div class="description">{{ q.transaction.description }}</div>
+                <div class="meta muted">
+                  {{ q.transaction.accountLabel ?? 'Account' }} · {{ q.transaction.bookingDate }}
+                  @if (cp) { · {{ counterpartyText(cp) }} }
+                </div>
+              </div>
+              <div class="amount" [class.amount-negative]="q.transaction.amount.startsWith('-')">
+                {{ q.transaction.amount | money: q.transaction.currency }}
+              </div>
+            </div>
+
+            <p class="question-text" [id]="'tq-' + q.id">Is this a transfer to one of your accounts?</p>
+            @if (q.questionText) {
+              <p class="muted detail">{{ q.questionText }}</p>
+            }
+
+            <div class="choices" role="group" [attr.aria-labelledby]="'tq-' + q.id">
+              <button mat-flat-button type="button" class="yes" [disabled]="st.busy" (click)="yes(q)">
+                <mat-icon>sync_alt</mat-icon> Yes, it's my transfer
+              </button>
+              <button mat-stroked-button type="button" class="no" [disabled]="st.busy" [attr.aria-expanded]="st.picking" (click)="no(q)">
+                No
+              </button>
+              <button mat-button type="button" class="skip" [disabled]="st.busy" (click)="skip(q)">Skip</button>
+            </div>
+
+            @if (cp) {
+              <mat-checkbox class="apply-future" [checked]="st.applyToFuture" [disabled]="st.busy"
+                            (change)="setApplyToFuture(q.id, $event.checked)">
+                Always treat this counterparty as my own account
+              </mat-checkbox>
+              <span class="muted small">Applies when you answer Yes.</span>
+            }
+
+            @if (st.picking) {
+              <div class="picker" role="group" aria-label="What is it instead?">
+                <span class="muted">What is it instead?</span>
+                @for (s of noSuggestions(q); track s) {
+                  <button mat-stroked-button type="button" class="suggestion" [disabled]="st.busy" (click)="pick(q, s)">{{ label(s) }}</button>
+                }
+                <mat-form-field class="all-categories" subscriptSizing="dynamic">
+                  <mat-label>All categories</mat-label>
+                  <mat-select [disabled]="st.busy" (valueChange)="pick(q, $event)">
+                    @for (c of noOptions; track c.value) {
+                      <mat-option [value]="c.value">{{ c.label }}</mat-option>
+                    }
+                  </mat-select>
+                </mat-form-field>
+              </div>
+            }
+            @if (st.busy) {
+              <mat-progress-bar mode="indeterminate" />
+            }
+          </mat-card-content>
+        </mat-card>
+      }
+    </section>
+  }
+
+  @if (statementGroups().length) {
+    <section class="section" aria-labelledby="statement-heading">
+      <h2 id="statement-heading">Statement questions</h2>
+      <p class="muted">Answer these on the statement page; they're submitted together so the statement can finish.</p>
+      @for (g of statementGroups(); track g.statementId) {
+        <mat-card appearance="outlined" class="group" [attr.data-statement-id]="g.statementId">
+          <mat-card-header>
+            <mat-card-title>{{ g.accountLabel }}</mat-card-title>
+            <mat-card-subtitle>{{ g.questions.length }} {{ g.questions.length === 1 ? 'question' : 'questions' }}</mat-card-subtitle>
+          </mat-card-header>
+          <mat-card-content>
+            <ul class="mini-list">
+              @for (q of g.questions; track q.id) {
+                <li>
+                  <span class="description">{{ q.transaction.description }}</span>
+                  <span class="muted"> · {{ q.transaction.bookingDate }} · </span>
+                  <span [class.amount-negative]="q.transaction.amount.startsWith('-')">{{ q.transaction.amount | money: q.transaction.currency }}</span>
+                </li>
+              }
+            </ul>
+          </mat-card-content>
+          <mat-card-actions align="end">
+            <a mat-flat-button class="answer-link" [routerLink]="['/statements', g.statementId]">Answer on the statement page</a>
+          </mat-card-actions>
+        </mat-card>
+      }
+    </section>
+  }
+}

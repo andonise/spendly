@@ -174,3 +174,89 @@ export interface Problem {
   code?: string;
   errors?: { field?: string; message?: string }[];
 }
+
+// ------------------------------------------------------------------ Phase 3: transactions, counterparties
+
+export const TRANSFER_STATUSES = ['NONE', 'CANDIDATE', 'INTERNAL', 'EXTERNAL'] as const;
+/** INTERNAL = between own accounts (excluded from totals); CANDIDATE = unconfirmed (also excluded). */
+export type TransferStatus = (typeof TRANSFER_STATUSES)[number];
+
+export const CATEGORY_SOURCES = ['RULE', 'EMBEDDING', 'LLM', 'USER', 'TRANSFER_MATCH'] as const;
+export type CategorySource = (typeof CATEGORY_SOURCES)[number];
+
+export type CounterpartyKind = 'IBAN' | 'PERSON';
+
+/** A counterparty as referenced from a transaction. `token` is an HMAC; never the raw IBAN/name. */
+export interface CounterpartyRef {
+  /** 64 hex chars. Display only a short prefix; never log it. */
+  token: string;
+  kind?: CounterpartyKind | null;
+  label?: string | null;
+  isOwnAccount: boolean;
+  /** Set when the token equals a registered account's IBAN hash. */
+  ownAccountId?: Uuid | null;
+}
+
+export interface Transaction {
+  id: Uuid;
+  accountId: Uuid;
+  accountLabel?: string;
+  statementId: Uuid;
+  bookingDate: IsoDate;
+  amount: Money;
+  currency: Currency;
+  amountBase?: Money | null;
+  fxRate?: string | null;
+  /** Sanitized description. */
+  description: string;
+  category?: Category | null;
+  categorySource?: CategorySource | null;
+  /** 0..1 */
+  confidence?: number | null;
+  transferStatus: TransferStatus;
+  transferPairId?: Uuid | null;
+  /** The other side of the transfer pair (for the "Transfer" badge link). */
+  pairedTransactionId?: Uuid | null;
+  counterparty?: CounterpartyRef | null;
+}
+
+export interface TransactionPage {
+  items: Transaction[];
+  page: number;
+  size: number;
+  totalItems: number;
+  totalPages: number;
+}
+
+export const TRANSACTION_SORTS = ['bookingDate,desc', 'bookingDate,asc', 'amount,desc', 'amount,asc'] as const;
+export type TransactionSort = (typeof TRANSACTION_SORTS)[number];
+
+/** Query parameters of `listTransactions`. */
+export interface TransactionQuery {
+  accountId?: Uuid;
+  statementId?: Uuid;
+  /** Booking date >= from. */
+  from?: IsoDate;
+  /** Booking date <= to (inclusive). */
+  to?: IsoDate;
+  category?: Category;
+  transferStatus?: TransferStatus;
+  /** 0-based, default 0. */
+  page?: number;
+  /** 1..200, default 50. */
+  size?: number;
+  /** Default `bookingDate,desc`. */
+  sort?: TransactionSort;
+}
+
+export interface Counterparty extends CounterpartyRef {
+  transactionCount: number;
+  lastSeen?: IsoDate | null;
+  /** One sanitized description, to help the user recognise it. */
+  sampleDescription?: string | null;
+}
+
+export interface CounterpartyUpdate {
+  label?: string | null;
+  isOwnAccount: boolean;
+}
