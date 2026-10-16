@@ -98,7 +98,19 @@
           "options": {
             "setupFiles": [
               "src/test-setup.ts"
-            ]
+            ],
+            "coverage": true,
+            "coverageExclude": [
+              "src/app/core/mock/**"
+            ],
+            "coverageReporters": [
+              "text-summary",
+              "html",
+              "json-summary"
+            ],
+            "coverageThresholds": {
+              "lines": 80
+            }
           }
         }
       }
