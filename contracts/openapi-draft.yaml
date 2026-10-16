@@ -305,6 +305,7 @@ paths:
       tags: [questions]
       operationId: answerQuestion
       summary: Answer a single question (used for TRANSFER questions)
+      description: 409 with code QUESTION_NOT_OPEN when the question is no longer OPEN (already answered, or resolved by a counterparty label).
       requestBody:
         required: true
         content:
@@ -402,6 +403,13 @@ paths:
               schema: { $ref: '#/components/schemas/Counterparty' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: |
+            COUNTERPARTY_IS_REGISTERED_ACCOUNT: `isOwnAccount: false` for a counterparty whose token is a
+            registered account's IBAN (`ownAccountId` set); that is always an own account.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
 
 components:
   parameters:
@@ -540,8 +548,9 @@ components:
       type: object
       description: |
         Present once the statement is CATEGORIZED (null before). All amounts are in the base currency
-        and are absolute (non-negative) values. `spendBase` and `incomeBase` exclude INTERNAL transfers.
-        `byCategory` lists spending categories plus INCOME, never INTERNAL_TRANSFER.
+        and are absolute (non-negative) values. `spendBase`, `incomeBase` and `byCategory` exclude
+        INTERNAL and CANDIDATE (unconfirmed) transfers. `byCategory` lists spending categories plus
+        INCOME, never INTERNAL_TRANSFER. `internalTransferCount` counts INTERNAL transactions only.
       required: [transactionCount, spendBase, incomeBase, internalTransferCount, byCategory]
       properties:
         transactionCount: { type: integer }
@@ -617,6 +626,10 @@ components:
         currency: { $ref: '#/components/schemas/Currency' }
         amountBase: { $ref: '#/components/schemas/Money' }
         description: { type: string, description: Sanitized description }
+        counterparty:
+          allOf: [{ $ref: '#/components/schemas/CounterpartyRef' }]
+          nullable: true
+          description: Lets the UI decide whether to offer "always treat this counterparty as my own account"
 
     Question:
       type: object
@@ -643,7 +656,8 @@ components:
         TRANSFER questions ("Is this a transfer to one of your accounts?"): `category: INTERNAL_TRANSFER`
         means yes (the transaction becomes INTERNAL); any other category means no (EXTERNAL with that
         category); skip means EXTERNAL + OTHER. `applyToFuture` on a TRANSFER answer marks the
-        counterparty as own account (when the transaction has a counterparty token).
+        counterparty as own account, but only together with `category: INTERNAL_TRANSFER` and only when
+        the transaction has a counterparty token; otherwise it is ignored.
       properties:
         category:
           allOf: [{ $ref: '#/components/schemas/Category' }]
