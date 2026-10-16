@@ -74,6 +74,11 @@ class StatementRepository(private val jdbc: JdbcClient, private val jsonMapper: 
         .param("error", error?.let { jsonMapper.writeValueAsString(it) })
         .param("clearError", clearError).param("id", id).param("expected", expected.name).update()
 
+    /** Records a completed step without a status change, guarded by the current status. */
+    fun updateStep(id: UUID, expected: StatementStatus, step: ProcessingStep): Int =
+        jdbc.sql("UPDATE statements SET last_completed_step = :step, updated_at = clock_timestamp() WHERE id = :id AND status = :expected")
+            .param("step", step.name).param("id", id).param("expected", expected.name).update()
+
     fun updatePeriod(id: UUID, start: LocalDate, end: LocalDate) {
         jdbc.sql("UPDATE statements SET period_start = :start, period_end = :end WHERE id = :id")
             .param("start", start).param("end", end).param("id", id).update()

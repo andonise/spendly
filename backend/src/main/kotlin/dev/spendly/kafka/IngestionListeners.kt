@@ -87,6 +87,9 @@ class DlqListener(
             Topics.STATEMENT_UPLOADED + Topics.DLQ_SUFFIX,
             Topics.TRANSACTIONS_IMPORTED + Topics.DLQ_SUFFIX,
             Topics.STATEMENT_PARSE_FAILED + Topics.DLQ_SUFFIX,
+            Topics.STATEMENT_PARSED + Topics.DLQ_SUFFIX,
+            Topics.ANSWERS_SUBMITTED + Topics.DLQ_SUFFIX,
+            Topics.TRANSACTIONS_CHANGED + Topics.DLQ_SUFFIX,
         ],
         groupId = ConsumerNames.DLQ,
         containerFactory = "dlqListenerContainerFactory",
@@ -102,6 +105,9 @@ class DlqListener(
         val eventId = tree?.path("eventId")?.asString(null)?.let(::uuidOrNull)
             ?: DlqRecoverer.headerValue(record, EventHeaders.EVENT_ID)?.let(::uuidOrNull)
         val statementId = tree?.path("payload")?.path("statementId")?.asString(null)?.let(::uuidOrNull)
+        // Phase 3 categorization topics fail a statement that is PARSED or CATEGORIZING; ingestion topics one in UPLOADED.
+        val phase3 = record.topic().removeSuffix(Topics.DLQ_SUFFIX) in setOf(Topics.STATEMENT_PARSED, Topics.ANSWERS_SUBMITTED)
+        val failable = if (phase3) setOf(StatementStatus.PARSED, StatementStatus.CATEGORIZING) else setOf(StatementStatus.UPLOADED)
         if (eventId == null || statementId == null) {
             log.warn("DLQ message on {} without usable IDs (reason={}, source={}, eventId={}, offset={})", record.topic(), reason, source, eventId, record.offset())
             return
@@ -112,11 +118,11 @@ class DlqListener(
             when {
                 statement == null ->
                     log.warn("DLQ message eventId={} (reason={}, source={}) refers to unknown statementId={}", eventId, reason, source, statementId)
-                statement.status != StatementStatus.UPLOADED ->
+                statement.status !in failable ->
                     log.warn("DLQ message eventId={} (reason={}) for statement {} ignored: status is {}", eventId, reason, statementId, statement.status)
                 else -> {
                     stateMachine.transition(
-                        statementId, StatementStatus.UPLOADED, StatementStatus.FAILED,
+                        statementId, statement.status, StatementStatus.FAILED,
                         error = StatementError("DLQ", "Processing failed ($reason, by $source); see logs for eventId $eventId", true),
                     )
                     log.warn("Statement {} FAILED from DLQ (eventId={}, reason={}, source={})", statementId, eventId, reason, source)

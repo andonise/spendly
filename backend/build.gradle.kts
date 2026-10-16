@@ -90,3 +90,39 @@ tasks.withType<Test> {
 		exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
 	}
 }
+
+// The default test task never runs the categorization evaluation (it needs the real Ollama).
+tasks.named<Test>("test") {
+	useJUnitPlatform {
+		excludeTags("eval")
+	}
+}
+
+/**
+ * Categorization accuracy against the real Ollama models on a fresh Testcontainers pgvector DB (system seed only,
+ * no user learning). Usage: .\gradlew.bat evalCategorization [-Pgolden=<csv>] [-PnoSeed=true] [-PllmOff=true]
+ * Writes build/reports/categorization-eval.json.
+ */
+tasks.register<Test>("evalCategorization") {
+	description = "Evaluates categorization on a labelled CSV (description,category) with the real LLM"
+	group = "verification"
+	testClassesDirs = sourceSets["test"].output.classesDirs
+	classpath = sourceSets["test"].runtimeClasspath
+	useJUnitPlatform {
+		includeTags("eval")
+	}
+	val golden = (project.findProperty("golden") as String?) ?: layout.projectDirectory.file("../eval/golden/categorization-dev.csv").asFile.absolutePath
+	systemProperty("spendly.eval.golden", file(golden).absolutePath)
+	systemProperty("spendly.eval.no-seed", (project.findProperty("noSeed") as String?) ?: "false")
+	systemProperty("spendly.eval.llm-off", (project.findProperty("llmOff") as String?) ?: "false")
+	systemProperty("spendly.eval.report", layout.buildDirectory.file("reports/categorization-eval.json").get().asFile.absolutePath)
+	(project.findProperty("ollamaBaseUrl") as String?)?.let { systemProperty("spendly.eval.ollama-base-url", it) }
+	// Threshold overrides for tuning, e.g. -Pspendly.categorization.confidence-threshold=0.8
+	project.properties.filterKeys { it.startsWith("spendly.") }.forEach { (k, v) -> systemProperty(k, v.toString()) }
+	outputs.upToDateWhen { false }
+	testLogging {
+		events("passed", "failed", "standard_out")
+		showStandardStreams = true
+		exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+	}
+}

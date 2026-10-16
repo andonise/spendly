@@ -25,6 +25,7 @@ import java.util.Base64
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureMockMvc
+@org.springframework.context.annotation.Import(TestAiConfiguration::class)
 abstract class IntegrationTest {
 
     companion object {
@@ -54,6 +55,8 @@ abstract class IntegrationTest {
         val topics = listOf(
             "spendly.statement-uploaded", "spendly.transactions-imported", "spendly.statement-parse-failed",
             "spendly.statement-uploaded.dlq", "spendly.transactions-imported.dlq", "spendly.statement-parse-failed.dlq",
+            "spendly.statement-parsed", "spendly.input-required", "spendly.answers-submitted", "spendly.transactions-changed",
+            "spendly.statement-parsed.dlq", "spendly.answers-submitted.dlq", "spendly.transactions-changed.dlq",
             "spendly.test-outbox",
         )
 
