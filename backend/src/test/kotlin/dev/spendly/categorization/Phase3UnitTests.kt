@@ -1,15 +1,37 @@
 package dev.spendly.categorization
 
-import dev.spendly.config.SpendlyProperties
-import dev.spendly.transfer.MatchMethod
-import dev.spendly.transfer.PairMatcher
-import dev.spendly.transfer.TransferCoverage
-import dev.spendly.transfer.TransferPatterns
-import dev.spendly.transfer.TransferTx
+import dev.spendly.categorization.domain.CategorizationEngine
+import dev.spendly.categorization.domain.LlmBatch
+import dev.spendly.categorization.domain.LlmItem
+import dev.spendly.categorization.domain.LlmPrompts
+import dev.spendly.categorization.domain.TxInput
+import dev.spendly.categorization.llm.EmbeddingGateway
+import dev.spendly.categorization.llm.LlmGateway
+import dev.spendly.categorization.llm.LlmMode
+import dev.spendly.categorization.llm.LlmUnavailableException
+import dev.spendly.categorization.persistence.Alias
+import dev.spendly.categorization.persistence.LearningRepository
+import dev.spendly.categorization.persistence.Neighbor
+import dev.spendly.shared.config.SpendlyProperties
+import dev.spendly.shared.observability.CategorizationMetrics
+import dev.spendly.transaction.Category
+import dev.spendly.transaction.CategorySource
+import dev.spendly.transaction.KeywordRules
+import dev.spendly.transaction.MerchantNormalizer
+import dev.spendly.transaction.TransferReason
+import dev.spendly.transaction.TransferStatus
+import dev.spendly.transfer.domain.MatchMethod
+import dev.spendly.transfer.domain.PairMatcher
+import dev.spendly.transfer.domain.TransferCoverage
+import dev.spendly.transfer.domain.TransferPatterns
+import dev.spendly.transfer.domain.TransferTx
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import java.math.BigDecimal
+import java.time.LocalDate
+import java.util.UUID
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
@@ -18,9 +40,6 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.springframework.boot.env.YamlPropertySourceLoader
 import org.springframework.core.io.ClassPathResource
-import java.math.BigDecimal
-import java.time.LocalDate
-import java.util.UUID
 
 class TransferRulesTest {
     private val a = UUID.randomUUID()
@@ -259,7 +278,7 @@ class CategorizationEngineTest {
         fun `metrics count transactions per layer`() {
             val registry = SimpleMeterRegistry()
             val metrics = CategorizationMetrics(registry)
-            metrics.categorized(CategorySource.RULE, 3)
+            metrics.categorized(CategorySource.RULE.name, 3)
             metrics.transfers("matched")
             assertEquals(3.0, registry.get("spendly.categorization.transactions").tag("layer", "RULE").counter().count())
             assertEquals(1.0, registry.get("spendly.transfers").tag("outcome", "matched").counter().count())

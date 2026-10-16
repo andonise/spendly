@@ -1,15 +1,15 @@
 package dev.spendly.support
 
-import dev.spendly.crypto.HmacService
-import dev.spendly.sanitizer.Sanitizer
-import tools.jackson.databind.JsonNode
-import tools.jackson.databind.json.JsonMapper
-import tools.jackson.module.kotlin.KotlinModule
+import dev.spendly.shared.crypto.HmacService
+import dev.spendly.shared.privacy.Sanitizer
 import java.math.BigInteger
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.UUID
+import tools.jackson.databind.JsonNode
+import tools.jackson.databind.json.JsonMapper
+import tools.jackson.module.kotlin.KotlinModule
 
 object TestPaths {
     val contracts: Path = Path.of(System.getProperty("spendly.test.contracts-dir") ?: "../contracts").toAbsolutePath().normalize()

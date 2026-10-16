@@ -1,29 +1,34 @@
 package dev.spendly
 
-import dev.spendly.config.SpendlyProperties
-import dev.spendly.crypto.AesGcmCipher
-import dev.spendly.crypto.SecretsConfiguration
-import dev.spendly.crypto.SecretsMisconfiguredException
-import dev.spendly.events.ContractSchemaValidator
-import dev.spendly.events.DlqReason
-import dev.spendly.events.EventTypes
-import dev.spendly.events.NonRetryableEventException
-import dev.spendly.fx.BnrClient
-import dev.spendly.fx.BnrXmlParser
-import dev.spendly.fx.FxRateRepository
+import dev.spendly.fx.domain.BnrClient
+import dev.spendly.fx.domain.BnrXmlParser
 import dev.spendly.fx.FxService
-import dev.spendly.health.OllamaHealthIndicator
-import dev.spendly.kafka.DlqRecoverer
-import dev.spendly.logging.MaskingMessageConverter
-import dev.spendly.sanitizer.Validators
+import dev.spendly.fx.persistence.FxRateRepository
+import dev.spendly.shared.config.SpendlyProperties
+import dev.spendly.shared.crypto.AesGcmCipher
+import dev.spendly.shared.crypto.SecretsConfiguration
+import dev.spendly.shared.crypto.SecretsMisconfiguredException
+import dev.spendly.shared.messaging.ContractSchemaValidator
+import dev.spendly.shared.messaging.DlqReason
+import dev.spendly.shared.messaging.DlqRecoverer
+import dev.spendly.shared.messaging.EventTypes
+import dev.spendly.shared.messaging.NonRetryableEventException
+import dev.spendly.shared.observability.OllamaHealthIndicator
+import dev.spendly.shared.privacy.MaskingMessageConverter
+import dev.spendly.shared.privacy.Validators
 import dev.spendly.statement.FileType
-import dev.spendly.statement.UploadStorage
+import dev.spendly.statement.domain.UploadStorage
 import dev.spendly.support.TestIbans
 import dev.spendly.support.TestJson
 import dev.spendly.support.TestPaths
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import java.math.BigDecimal
+import java.nio.file.Files
+import java.nio.file.Path
+import java.time.LocalDate
+import java.util.Base64
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotEquals
@@ -34,11 +39,6 @@ import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.api.io.TempDir
 import org.springframework.boot.health.contributor.Status
 import org.springframework.transaction.support.TransactionTemplate
-import java.math.BigDecimal
-import java.nio.file.Files
-import java.nio.file.Path
-import java.time.LocalDate
-import java.util.Base64
 
 class AesGcmCipherTest {
     private val cipher = AesGcmCipher(ByteArray(32) { it.toByte() })

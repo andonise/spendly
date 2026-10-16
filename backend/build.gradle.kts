@@ -20,6 +20,7 @@ repositories {
 }
 
 extra["springAiVersion"] = "2.0.1"
+extra["springModulithVersion"] = "2.1.1"
 
 dependencies {
 	implementation("org.springframework.boot:spring-boot-starter-actuator")
@@ -34,6 +35,7 @@ dependencies {
 	implementation("org.flywaydb:flyway-database-postgresql")
 	implementation("org.jetbrains.kotlin:kotlin-reflect")
 	implementation("org.jetbrains.kotlinx:kotlinx-coroutines-reactor")
+	implementation("org.springframework.modulith:spring-modulith-api")
 	implementation("org.springframework.ai:spring-ai-starter-model-ollama")
 	implementation("org.springframework.ai:spring-ai-starter-vector-store-pgvector")
 	implementation("org.springframework.ai:spring-ai-vector-store-advisor")
@@ -56,6 +58,8 @@ dependencies {
 	testImplementation("org.testcontainers:testcontainers-junit-jupiter")
 	testImplementation("org.testcontainers:testcontainers-postgresql")
 	testImplementation("org.testcontainers:testcontainers-redpanda")
+	testImplementation("org.springframework.modulith:spring-modulith-starter-test")
+	testImplementation("org.springframework.modulith:spring-modulith-docs")
 	testImplementation("io.mockk:mockk:1.14.11")
 	testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
@@ -63,6 +67,7 @@ dependencies {
 dependencyManagement {
 	imports {
 		mavenBom("org.springframework.ai:spring-ai-bom:${property("springAiVersion")}")
+		mavenBom("org.springframework.modulith:spring-modulith-bom:${property("springModulithVersion")}")
 	}
 }
 

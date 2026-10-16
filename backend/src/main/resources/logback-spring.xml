@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Logs carry IDs only; the masking converter is a safety net for IBAN / card / CNP / e-mail / phone patterns. -->
 <configuration>
-    <conversionRule conversionWord="msg" class="dev.spendly.logging.MaskingMessageConverter"/>
-    <conversionRule conversionWord="m" class="dev.spendly.logging.MaskingMessageConverter"/>
-    <conversionRule conversionWord="message" class="dev.spendly.logging.MaskingMessageConverter"/>
+    <conversionRule conversionWord="msg" class="dev.spendly.shared.privacy.MaskingMessageConverter"/>
+    <conversionRule conversionWord="m" class="dev.spendly.shared.privacy.MaskingMessageConverter"/>
+    <conversionRule conversionWord="message" class="dev.spendly.shared.privacy.MaskingMessageConverter"/>
 
     <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
     <property name="CONSOLE_LOG_PATTERN"

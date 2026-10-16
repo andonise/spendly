@@ -1,6 +1,12 @@
 package dev.spendly.support
 
 import com.sun.net.httpserver.HttpServer
+import java.net.InetSocketAddress
+import java.nio.charset.StandardCharsets
+import java.nio.file.Files
+import java.nio.file.Path
+import java.security.SecureRandom
+import java.util.Base64
 import org.apache.kafka.clients.admin.AdminClient
 import org.apache.kafka.clients.admin.AdminClientConfig
 import org.apache.kafka.clients.admin.NewTopic
@@ -11,12 +17,6 @@ import org.springframework.test.context.DynamicPropertySource
 import org.testcontainers.postgresql.PostgreSQLContainer
 import org.testcontainers.redpanda.RedpandaContainer
 import org.testcontainers.utility.DockerImageName
-import java.net.InetSocketAddress
-import java.nio.charset.StandardCharsets
-import java.nio.file.Files
-import java.nio.file.Path
-import java.security.SecureRandom
-import java.util.Base64
 
 /**
  * Base for integration tests. Every subclass uses exactly the same configuration, so Spring caches ONE

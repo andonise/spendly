@@ -1,11 +1,21 @@
 package dev.spendly.it
 
-import dev.spendly.importing.TransactionRepository
-import dev.spendly.statement.StatementEventsService
+import dev.spendly.statement.web.StatementEventsService
 import dev.spendly.support.IntegrationTest
 import dev.spendly.support.TestIbans
 import dev.spendly.support.TestPaths
 import dev.spendly.support.eventually
+import dev.spendly.transaction.persistence.TransactionRepository
+import java.math.BigDecimal
+import java.net.URI
+import java.net.http.HttpClient
+import java.net.http.HttpRequest
+import java.net.http.HttpResponse
+import java.nio.file.Files
+import java.time.Duration
+import java.util.UUID
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.CopyOnWriteArrayList
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull
@@ -18,26 +28,16 @@ import org.springframework.http.MediaType
 import org.springframework.jdbc.core.simple.JdbcClient
 import org.springframework.mock.web.MockMultipartFile
 import org.springframework.test.web.servlet.MockMvc
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
-import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.header
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.json.JsonMapper
-import java.math.BigDecimal
-import java.net.URI
-import java.net.http.HttpClient
-import java.net.http.HttpRequest
-import java.net.http.HttpResponse
-import java.nio.file.Files
-import java.time.Duration
-import java.util.UUID
-import java.util.concurrent.CompletableFuture
-import java.util.concurrent.CopyOnWriteArrayList
 
 /** Accounts API + upload → Kafka → CSV parser → import → PARSED → categorizer, end to end on Testcontainers. */
 class IngestionIT : IntegrationTest() {
