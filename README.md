@@ -10,20 +10,32 @@ Ollama (`qwen3:8b`, `nomic-embed-text`) · PostgreSQL + pgvector · Redpanda (Ka
 
 ## Repository layout
 
+One repository, three apps, and the material they share:
+
 ```
-spendly-service/
-├── backend/              # Kotlin + Spring Boot (Gradle Kotlin DSL)
-├── pdf-parser/           # Python service (pyproject.toml, Dockerfile)
-├── eval/                 # Python notebooks + scripts, golden datasets
-├── frontend/             # Angular app
-├── contracts/            # Event JSON Schemas, PII rules, sanitizer fixtures, OpenAPI draft
-├── samples/              # synthetic sample statements (never real data)
-├── docker-compose.yml    # postgres+pgvector, redpanda, console (+ pdf-parser)
+spendly/
+├── apps/
+│   ├── core/             # Kotlin + Spring Boot: the core service (Gradle Kotlin DSL)
+│   ├── web/              # Angular app
+│   └── pdf-parser/       # Python service: PDF statements → transactions (uv, Dockerfile)
+├── contracts/            # shared agreements: OpenAPI draft, event JSON Schemas, PII rules, sanitizer fixtures
+├── eval/                 # golden datasets for measuring categorization (eval toolkit: Phase 6)
+├── samples/              # synthetic sample statements with their expected results (never real data)
+├── docker-compose.yml    # postgres+pgvector, redpanda, console, pdf-parser
 └── README.md
 ```
 
-`contracts/` is the single source of truth shared by every service; see
-[`contracts/README.md`](contracts/README.md) for Kafka conventions and the sanitizer algorithm.
+| Folder | Read more |
+|---|---|
+| `apps/core` | [`apps/core/README.md`](apps/core/README.md): modules (modular monolith) and their rules |
+| `apps/web` | [`apps/web/README.md`](apps/web/README.md): pages, mock API, tests |
+| `apps/pdf-parser` | [`apps/pdf-parser/README.md`](apps/pdf-parser/README.md): parsing, Kafka worker, tests |
+| `contracts` | [`contracts/README.md`](contracts/README.md): Kafka conventions, sanitizer algorithm |
+| `eval` | [`eval/golden/README.md`](eval/golden/README.md): metric, target, current results |
+| `samples` | [`samples/README.md`](samples/README.md): the fictional accounts and expected totals |
+
+`contracts/` is the single source of truth: the apps read it and never copy it. A change is made
+there first, then in every app that uses it.
 
 ## Prerequisites
 
@@ -38,8 +50,11 @@ ollama pull nomic-embed-text
 
 ```bash
 cp .env.example .env          # then set passwords, key paths and the AES key (see comments)
-docker compose up -d          # postgres, redpanda, topic init, console
+docker compose up -d          # postgres, redpanda, topic init, console, pdf-parser
 docker compose ps             # postgres and redpanda should be "healthy"
+
+cd apps/core && ./gradlew bootRun          # core service on :8080 (reads ../../.env)
+cd apps/web && npm ci && npm start         # web app on :4200, proxies /api to :8080
 ```
 
 Secrets never go in git: `.env` is ignored, and the HMAC key file referenced by
@@ -47,13 +62,23 @@ Secrets never go in git: `.env` is ignored, and the HMAC key file referenced by
 
 | Service | URL |
 |---|---|
+| Web app | http://localhost:4200 (`npm start`, proxies `/api` to 8080) |
+| Core service | http://localhost:8080 (OpenAPI UI at `/swagger-ui.html`) |
+| PDF parser | http://localhost:8090 (`/health`) |
 | PostgreSQL | `localhost:5432` (db/user `spendly`) |
 | Kafka API (Redpanda) | `localhost:19092` from the host, `redpanda:9092` inside compose |
 | Redpanda Console | http://localhost:8088 |
 | Ollama (host) | http://localhost:11434 |
-| Backend | http://localhost:8080 (Phase 0/1) |
-| PDF parser | http://localhost:8090 (Phase 2) |
-| Frontend | http://localhost:4200 (`ng serve`, proxies `/api` to 8080) |
+
+## Tests
+
+```bash
+cd apps/core && ./gradlew test                 # unit + integration (Testcontainers) + module boundaries
+cd apps/core && ./gradlew evalCategorization   # categorization accuracy on eval/golden
+cd apps/web && npm test                        # Vitest
+cd apps/pdf-parser && uv run pytest
+uv run --with jsonschema --with referencing python contracts/tools/validate_examples.py   # contract examples
+```
 
 ## Privacy rules
 
@@ -68,7 +93,8 @@ Secrets never go in git: `.env` is ignored, and the HMAC key file referenced by
 | Phase | Scope | State |
 |---|---|---|
 | Foundation | layout, compose, contracts, samples | done |
-| 0 / 1 | backend: accounts, sanitizer, upload, status machine, outbox, CSV parsers | planned |
-| 2 | pdf-parser | planned |
-| Frontend setup | shell, accounts, upload, statement page, questions form (mock API) | planned |
-| 3–7 | transfers, categorization, reports, chat, eval, polish | later |
+| 0 / 1 | core: accounts, sanitizer, upload, status machine, outbox, CSV parsers | done |
+| 2 | pdf-parser | done (one PDF layout) |
+| Web | shell, accounts, upload, statement page, questions, transactions, counterparties | done |
+| 3 | transfer detection, categorization (rules → embeddings → LLM), questions and learning | done; holdout accuracy 84.2%, below the 90% target (see `eval/golden/README.md`) |
+| 4–7 | reports, chat, eval toolkit, polish | next |

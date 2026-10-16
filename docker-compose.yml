@@ -4,7 +4,7 @@
 #
 # Usage:  cp .env.example .env   (then fill in secrets)
 #         docker compose up -d
-name: spendly-service
+name: spendly
 
 services:
   postgres:
@@ -94,9 +94,9 @@ services:
       retries: 12
       start_period: 10s
 
-  # --- Phase 2: Python PDF parser (owned by pdf-parser/) -------------------
+  # --- Phase 2: Python PDF parser (owned by apps/pdf-parser/) -------------------
   pdf-parser:
-    build: ./pdf-parser
+    build: ./apps/pdf-parser
     restart: unless-stopped
     depends_on:
       redpanda:
