@@ -33,8 +33,8 @@ data class StatementResponse(
     val periodEnd: LocalDate?,
     val error: StatementError?,
     val progress: StatementProgress,
-    /** Present once the statement is CATEGORIZED (Phase 3+); always null in Phase 1. */
-    val summary: Any?,
+    /** Present once the statement is CATEGORIZED, else null. */
+    val summary: StatementSummary?,
     val createdAt: Instant,
     val updatedAt: Instant,
 )
@@ -47,6 +47,8 @@ data class UploadAccepted(val statementId: UUID, val status: StatementStatus, va
 class StatementController(
     private val service: StatementService,
     private val events: StatementEventsService,
+    private val questions: dev.spendly.categorization.QuestionService,
+    private val summaries: StatementSummaryService,
 ) {
 
     @GetMapping
@@ -83,11 +85,20 @@ class StatementController(
     @GetMapping("/{statementId}/events", produces = [MediaType.TEXT_EVENT_STREAM_VALUE])
     fun streamStatementEvents(@PathVariable statementId: UUID): SseEmitter = events.subscribe(service.get(statementId))
 
-    @Operation(summary = "Questions for this statement (always empty until Phase 3)")
+    @Operation(summary = "Questions for this statement (open ones first)")
     @GetMapping("/{statementId}/questions")
-    fun getStatementQuestions(@PathVariable statementId: UUID): List<Any> {
-        service.get(statementId)
-        return emptyList()
+    fun getStatementQuestions(@PathVariable statementId: UUID): List<dev.spendly.categorization.QuestionResponse> =
+        questions.forStatement(statementId)
+
+    @Operation(summary = "Submit answers for every open question; 202, or 409 STATEMENT_NOT_IN_NEEDS_INPUT")
+    @PostMapping("/{statementId}/answers")
+    fun submitAnswers(
+        @PathVariable statementId: UUID,
+        @org.springframework.web.bind.annotation.RequestBody body: dev.spendly.categorization.AnswersSubmission,
+        request: HttpServletRequest,
+    ): ResponseEntity<StatementResponse> {
+        val correlationId = request.getAttribute(CorrelationIdFilter.ATTRIBUTE) as String
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(toResponse(questions.submitAnswers(statementId, body, correlationId)))
     }
 
     private fun toResponse(s: StatementRecord) = StatementResponse(
@@ -99,8 +110,8 @@ class StatementController(
         periodStart = s.periodStart,
         periodEnd = s.periodEnd,
         error = s.error,
-        progress = StatementProgress(service.transactionCount(s.id), 0, 0),
-        summary = null,
+        progress = summaries.progress(s.id),
+        summary = if (s.status == StatementStatus.CATEGORIZED) summaries.summary(s.id) else null,
         createdAt = s.createdAt,
         updatedAt = s.updatedAt,
     )
