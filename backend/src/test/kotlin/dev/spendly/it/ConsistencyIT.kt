@@ -62,6 +62,11 @@ import java.util.concurrent.Callable
 import java.util.concurrent.Executors
 
 class ConsistencyIT : IntegrationTest() {
+    companion object {
+        /** After import the categorizer (Phase 3) moves the statement on asynchronously. */
+        val PARSED_OR_LATER = setOf(StatementStatus.PARSED, StatementStatus.CATEGORIZING, StatementStatus.NEEDS_INPUT, StatementStatus.CATEGORIZED)
+    }
+
     @Autowired lateinit var accounts: AccountService
     @Autowired lateinit var statements: StatementRepository
     @Autowired lateinit var stateMachine: StatementStateMachine
@@ -77,6 +82,7 @@ class ConsistencyIT : IntegrationTest() {
     @Autowired lateinit var tx: TransactionTemplate
     @Autowired lateinit var json: JsonMapper
     @Autowired lateinit var mvc: MockMvc
+    @Autowired lateinit var domainEvents: dev.spendly.outbox.DomainEvents
 
     private fun account(currency: String = "RON"): UUID = accounts.create(
         AccountCreate("Acc ${UUID.randomUUID()}", "Generic Bank", AccountType.CURRENT, currency, TestIbans.random(), null, LocalDate.of(2026, 1, 1)),
@@ -227,10 +233,11 @@ class ConsistencyIT : IntegrationTest() {
         importService.importTransactions(event.copy(eventId = UUID.randomUUID().toString()))
 
         assertEquals(before, snapshot())
-        val after = statements.findById(statementId)!!
-        assertEquals(statusBefore.status, after.status)
-        assertEquals(statusBefore.updatedAt, after.updatedAt)
+        // The statement may meanwhile move on (the categorizer runs asynchronously), but never because of the duplicates:
+        // exactly one StatementParsed was written for it.
+        assertTrue(statements.findById(statementId)!!.status in PARSED_OR_LATER)
         assertEquals(1L, count("SELECT count(*) FROM processed_events WHERE event_id = :id", UUID.fromString(event.eventId)))
+        assertEquals(1L, count("SELECT count(*) FROM outbox WHERE aggregate_id = :id AND event_type = 'StatementParsed'", statementId))
     }
 
     @Test
@@ -246,7 +253,7 @@ class ConsistencyIT : IntegrationTest() {
                 p.send(r).get()
             }
         }
-        eventually { statements.findById(statementId)!!.status == StatementStatus.PARSED }
+        eventually { statements.findById(statementId)!!.status in PARSED_OR_LATER }
         Thread.sleep(1500)
         assertEquals(3L, transactions.countByStatementId(statementId))
         assertEquals(LocalDate.of(2026, 8, 1), statements.findById(statementId)!!.periodStart)
@@ -271,7 +278,7 @@ class ConsistencyIT : IntegrationTest() {
         val event = importedEvent(statementId, accountId)
         val failing = spyk(stateMachine)
         every { failing.transition(any(), any(), any(), any(), any()) } throws IllegalStateException("forced failure after inserting transactions")
-        val faulty = ImportService(processed, statements, failing, fx, cipher, namedJdbc, tx)
+        val faulty = ImportService(processed, statements, failing, fx, cipher, namedJdbc, tx, domainEvents)
 
         val outboxBefore = jdbc.sql("SELECT count(*) FROM outbox").query(Long::class.java).single()
         assertThrows<IllegalStateException> { faulty.importTransactions(event) }
@@ -410,7 +417,7 @@ class ConsistencyIT : IntegrationTest() {
         importService.importTransactions(importedEvent(statementId, accountId, rows, currency = "EUR"))
         // 2026-08-10 has no rate within the lookback? It does (08-07 is 3 days earlier) → both converted.
         val st = statements.findById(statementId)!!
-        assertEquals(StatementStatus.PARSED, st.status)
+        assertTrue(st.status in PARSED_OR_LATER)
         val txs = transactions.findByStatementIdOrderBySequence(statementId)
         assertEquals(java.math.BigDecimal("-99.50"), txs[0].amountBase)
         assertEquals(java.math.BigDecimal("-49.75"), txs[1].amountBase)

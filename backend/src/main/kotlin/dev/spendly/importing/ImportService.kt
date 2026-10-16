@@ -40,6 +40,7 @@ class ImportService(
     private val cipher: AesGcmCipher,
     private val jdbc: NamedParameterJdbcTemplate,
     private val tx: TransactionTemplate,
+    private val domainEvents: dev.spendly.outbox.DomainEvents,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -105,7 +106,10 @@ class ImportService(
                 )
             } else {
                 stateMachine.transition(statementId, StatementStatus.UPLOADED, StatementStatus.PARSED, ProcessingStep.PARSE)
+                // Same transaction: the categorizer is triggered by StatementParsed (Phase 3).
+                announceParsed(statementId, statement.accountId, LocalDate.parse(p.periodStart), LocalDate.parse(p.periodEnd), env.correlationId)
             }
+            upsertCounterparties(statementId)
             log.info("Imported statement {} ({} transactions, eventId={}, producer={})", statementId, p.transactions.size, eventId, env.producer)
         }
     }
@@ -156,6 +160,25 @@ class ImportService(
             )
         }
         return missing == 0
+    }
+
+    /** Outbox StatementParsed; the caller's transaction also moves the statement to PARSED (import or retry). */
+    fun announceParsed(statementId: UUID, accountId: UUID, periodStart: LocalDate, periodEnd: LocalDate, correlationId: String) {
+        val count = jdbc.queryForObject("SELECT count(*) FROM transactions WHERE statement_id = :id", mapOf("id" to statementId), Int::class.java) ?: 0
+        domainEvents.statementParsed(statementId, accountId, periodStart, periodEnd, count, correlationId)
+    }
+
+    /** A counterparties row per token seen (labels are attached later by the user). */
+    private fun upsertCounterparties(statementId: UUID) {
+        jdbc.update(
+            """
+            INSERT INTO counterparties (token, kind)
+            SELECT DISTINCT ON (counterparty_token) counterparty_token, counterparty_token_kind
+            FROM transactions WHERE statement_id = :id AND counterparty_token IS NOT NULL
+            ON CONFLICT (token) DO NOTHING
+            """.trimIndent(),
+            mapOf("id" to statementId),
+        )
     }
 
     companion object {

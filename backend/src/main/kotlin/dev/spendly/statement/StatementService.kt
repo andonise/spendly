@@ -117,8 +117,14 @@ class StatementService(
                     throw ConflictException("FX_RATE_MISSING", "Exchange rates are still missing; import them, then retry")
                 }
                 stateMachine.transition(id, StatementStatus.FAILED, StatementStatus.PARSED, ProcessingStep.PARSE)
+                importService.announceParsed(id, statement.accountId, statement.periodStart!!, statement.periodEnd!!, statement.correlationId)
             }
-            else -> throw ConflictException("RETRY_NOT_SUPPORTED", "Retry from ${statement.lastCompletedStep} is not available yet")
+            // Failed during categorization (e.g. dead-lettered): back to PARSED; the categorizer re-runs detection
+            // and categorization (answers already applied and user categories are kept).
+            else -> tx.executeWithoutResult {
+                stateMachine.transition(id, StatementStatus.FAILED, StatementStatus.PARSED, ProcessingStep.PARSE)
+                importService.announceParsed(id, statement.accountId, statement.periodStart!!, statement.periodEnd!!, statement.correlationId)
+            }
         }
         log.info("Statement {} retried from {}", id, statement.lastCompletedStep)
         return get(id)

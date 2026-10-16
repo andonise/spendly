@@ -39,7 +39,7 @@ import java.util.UUID
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CopyOnWriteArrayList
 
-/** Accounts API + upload → Kafka → CSV parser → import → PARSED, end to end on Testcontainers. */
+/** Accounts API + upload → Kafka → CSV parser → import → PARSED → categorizer, end to end on Testcontainers. */
 class IngestionIT : IntegrationTest() {
     @Autowired lateinit var mvc: MockMvc
     @Autowired lateinit var json: JsonMapper
@@ -121,7 +121,7 @@ class IngestionIT : IntegrationTest() {
     }
 
     @Test
-    fun `end to end - generic CSV reaches PARSED with 18 transactions, re-upload is a duplicate (AC-SD-3, AC-SD-6)`() {
+    fun `end to end - generic CSV is parsed and categorized with 18 transactions, re-upload is a duplicate (AC-SD-3, AC-SD-6)`() {
         val accountId = createAccount().path("id").asString()
         val bytes = Files.readAllBytes(TestPaths.sample("generic-bank-2026-08.csv"))
 
@@ -133,12 +133,15 @@ class IngestionIT : IntegrationTest() {
         assertEquals("/api/statements/$id", first.response.getHeader("Location"))
         assertFalse(accepted.path("duplicate").asBoolean())
 
-        val parsed = awaitStatus(id, "PARSED")
+        // Phase 3: StatementParsed triggers transfer detection and categorization (the test LLM knows every row).
+        val parsed = awaitStatus(id, "CATEGORIZED")
         assertEquals(18, parsed.path("progress").path("transactionsImported").asInt())
-        assertEquals("PARSE", parsed.path("lastCompletedStep").asString())
+        assertEquals(18, parsed.path("progress").path("transactionsCategorized").asInt())
+        assertEquals(0, parsed.path("progress").path("questionsOpen").asInt())
+        assertEquals("CATEGORIZE", parsed.path("lastCompletedStep").asString())
         assertEquals("2026-08-01", parsed.path("periodStart").asString())
         assertEquals("2026-08-31", parsed.path("periodEnd").asString())
-        assertTrue(parsed.path("summary").isNull)
+        assertEquals(18, parsed.path("summary").path("transactionCount").asInt())
         assertTrue(parsed.path("error").isNull)
 
         // AC-SD-3: the original is deleted after a successful parse (retention PT0S)
@@ -182,11 +185,11 @@ class IngestionIT : IntegrationTest() {
     }
 
     @Test
-    fun `revolut CSV reaches PARSED with 8 transactions including the fee row`() {
+    fun `revolut CSV is parsed and categorized with 8 transactions including the fee row`() {
         val accountId = createAccount().path("id").asString()
         val res = upload(accountId, "revolut.csv", Files.readAllBytes(TestPaths.sample("revolut-2026-08.csv")))
         val id = body(res).path("statementId").asString()
-        val parsed = awaitStatus(id, "PARSED")
+        val parsed = awaitStatus(id, "CATEGORIZED")
         assertEquals(8, parsed.path("progress").path("transactionsImported").asInt())
         assertEquals("2026-08-11", parsed.path("periodStart").asString())
         assertEquals("2026-08-28", parsed.path("periodEnd").asString())
@@ -208,7 +211,7 @@ class IngestionIT : IntegrationTest() {
         awaitStatus(id, "FAILED")
         // Retry of a non-FAILED statement → 409
         val okId = body(upload(accountId, "ok.csv", Files.readAllBytes(TestPaths.sample("revolut-2026-08.csv")))).path("statementId").asString()
-        awaitStatus(okId, "PARSED")
+        awaitStatus(okId, "CATEGORIZED")
         mvc.perform(post("/api/statements/$okId/retry")).andExpect(status().isConflict).andExpect(jsonPath("$.code").value("STATEMENT_NOT_FAILED"))
     }
 

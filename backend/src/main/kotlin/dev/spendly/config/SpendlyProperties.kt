@@ -14,6 +14,8 @@ data class SpendlyProperties(
     val baseCurrency: String = "RON",
     val contractsDir: String? = null,
     val llm: Llm = Llm(),
+    val categorization: Categorization = Categorization(),
+    val transfers: Transfers = Transfers(),
     val ollama: Ollama = Ollama(),
     val secrets: Secrets = Secrets(),
     val upload: Upload = Upload(),
@@ -22,7 +24,38 @@ data class SpendlyProperties(
     val sse: Sse = Sse(),
     val fx: Fx = Fx(),
 ) {
-    data class Llm(val enabled: Boolean = true)
+    /**
+     * LLM mode (plan section 3). [enabled] is the initial value of the runtime switch
+     * ([dev.spendly.categorization.LlmMode]); calls are serialized, time-boxed and retried.
+     */
+    data class Llm(
+        val enabled: Boolean = true,
+        val model: String = "qwen3:8b",
+        val temperature: Double = 0.1,
+        val timeout: Duration = Duration.ofSeconds(180),
+        val maxAttempts: Int = 2,
+        val retryBackoff: Duration = Duration.ofSeconds(1),
+        /** Use Ollama's native JSON-schema `format` for structured output (else prompt instructions only). */
+        val providerStructuredOutput: Boolean = true,
+    )
+
+    /** Categorization layers (plan section 9 and Phase 3). */
+    data class Categorization(
+        /** Cosine similarity at or above which the nearest known merchant/example decides the category. */
+        val embeddingThreshold: Double = 0.90,
+        /** LLM answers below this confidence become questions. */
+        val confidenceThreshold: Double = 0.85,
+        val llmBatchSize: Int = 20,
+        val fewShotExamples: Int = 5,
+        val embeddingTimeout: Duration = Duration.ofSeconds(60),
+    )
+
+    /** Internal-transfer detection (plan section 10). */
+    data class Transfers(
+        val dateWindowDays: Long = 3,
+        /** Relative tolerance on amount_base when the two sides have different currencies. */
+        val fxTolerance: java.math.BigDecimal = java.math.BigDecimal("0.02"),
+    )
 
     data class Ollama(val healthTimeout: Duration = Duration.ofSeconds(2))
 

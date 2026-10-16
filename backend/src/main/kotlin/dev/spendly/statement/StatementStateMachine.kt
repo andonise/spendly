@@ -55,6 +55,20 @@ class StatementStateMachine(
         )
     }
 
+    /** Like [transition], but returns false instead of throwing when the SQL guard matched 0 rows. */
+    fun tryTransition(
+        statementId: UUID,
+        expected: StatementStatus,
+        target: StatementStatus,
+        step: ProcessingStep? = null,
+        error: StatementError? = null,
+    ): Boolean = try {
+        transition(statementId, expected, target, step, error)
+        true
+    } catch (e: StatusConflictException) {
+        false
+    }
+
     companion object {
         val ALLOWED: Map<StatementStatus, Set<StatementStatus>> = mapOf(
             StatementStatus.UPLOADED to setOf(StatementStatus.PARSED, StatementStatus.FAILED),
