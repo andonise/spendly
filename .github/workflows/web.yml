@@ -1,0 +1,57 @@
+# Angular web app: tests with coverage gate, production build.
+name: web
+
+on:
+  push:
+    branches: [main]
+    paths: &paths
+      - "apps/web/**"
+      - ".github/workflows/web.yml"
+  pull_request:
+    paths: *paths
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: test, coverage, build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24.14.1"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - run: npm ci
+
+      # Vitest in jsdom (no browser). Coverage gate: 80% of lines (angular.json, test options).
+      - name: Test and coverage gate
+        run: npm test
+
+      - name: Production build
+        run: npm run build
+
+      - name: Coverage summary
+        if: always()
+        run: python3 ../../.github/scripts/coverage_summary.py web coverage/web/coverage-summary.json >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: web-coverage
+          path: apps/web/coverage/
+          retention-days: 14
