@@ -1,6 +1,6 @@
 package dev.spendly
 
-import dev.spendly.config.SpendlyProperties
+import dev.spendly.shared.config.SpendlyProperties
 import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.boot.runApplication

@@ -1,34 +1,40 @@
 package dev.spendly.it
 
-import dev.spendly.account.AccountCreate
-import dev.spendly.account.AccountService
-import dev.spendly.account.AccountType
-import dev.spendly.crypto.AesGcmCipher
-import dev.spendly.events.EventEnvelope
-import dev.spendly.events.EventTypes
-import dev.spendly.events.ImportedTransaction
-import dev.spendly.events.ParserInfo
-import dev.spendly.events.Producers
-import dev.spendly.events.StatementUploadedPayload
-import dev.spendly.events.TransactionsImportedPayload
+import dev.spendly.account.domain.AccountService
+import dev.spendly.account.persistence.AccountType
+import dev.spendly.account.web.AccountCreate
 import dev.spendly.fx.FxService
-import dev.spendly.importing.ImportService
-import dev.spendly.importing.TransactionRepository
-import dev.spendly.outbox.OutboxRelay
-import dev.spendly.outbox.OutboxService
-import dev.spendly.outbox.ProcessedEventsRepository
-import dev.spendly.parsing.TxHashes
+import dev.spendly.shared.crypto.AesGcmCipher
+import dev.spendly.shared.messaging.EventEnvelope
+import dev.spendly.shared.messaging.EventTypes
+import dev.spendly.shared.messaging.ImportedTransaction
+import dev.spendly.shared.messaging.ParserInfo
+import dev.spendly.shared.messaging.Producers
+import dev.spendly.shared.messaging.StatementUploadedPayload
+import dev.spendly.shared.messaging.TransactionsImportedPayload
+import dev.spendly.shared.outbox.DomainEvents
+import dev.spendly.shared.outbox.OutboxRelay
+import dev.spendly.shared.outbox.OutboxService
+import dev.spendly.shared.outbox.ProcessedEventsRepository
 import dev.spendly.statement.FileType
 import dev.spendly.statement.ProcessingStep
-import dev.spendly.statement.StatementRepository
-import dev.spendly.statement.StatementStateMachine
 import dev.spendly.statement.StatementStatus
-import dev.spendly.statement.StatusConflictException
+import dev.spendly.statement.domain.StatementStateMachine
+import dev.spendly.statement.domain.StatusConflictException
+import dev.spendly.statement.importing.ImportService
+import dev.spendly.statement.parsing.TxHashes
+import dev.spendly.statement.persistence.StatementRepository
 import dev.spendly.support.IntegrationTest
 import dev.spendly.support.TestIbans
 import dev.spendly.support.eventually
+import dev.spendly.transaction.persistence.TransactionRepository
 import io.mockk.every
 import io.mockk.spyk
+import java.time.Duration
+import java.time.LocalDate
+import java.util.UUID
+import java.util.concurrent.Callable
+import java.util.concurrent.Executors
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.clients.consumer.KafkaConsumer
 import org.apache.kafka.clients.producer.KafkaProducer
@@ -55,11 +61,6 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPat
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import org.springframework.transaction.support.TransactionTemplate
 import tools.jackson.databind.json.JsonMapper
-import java.time.Duration
-import java.time.LocalDate
-import java.util.UUID
-import java.util.concurrent.Callable
-import java.util.concurrent.Executors
 
 class ConsistencyIT : IntegrationTest() {
     companion object {
@@ -82,7 +83,7 @@ class ConsistencyIT : IntegrationTest() {
     @Autowired lateinit var tx: TransactionTemplate
     @Autowired lateinit var json: JsonMapper
     @Autowired lateinit var mvc: MockMvc
-    @Autowired lateinit var domainEvents: dev.spendly.outbox.DomainEvents
+    @Autowired lateinit var domainEvents: dev.spendly.shared.outbox.DomainEvents
 
     private fun account(currency: String = "RON"): UUID = accounts.create(
         AccountCreate("Acc ${UUID.randomUUID()}", "Generic Bank", AccountType.CURRENT, currency, TestIbans.random(), null, LocalDate.of(2026, 1, 1)),

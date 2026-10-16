@@ -1,43 +1,18 @@
 package dev.spendly.fx
 
-import dev.spendly.config.SpendlyProperties
-import org.slf4j.LoggerFactory
-import org.springframework.boot.context.event.ApplicationReadyEvent
-import org.springframework.context.event.EventListener
-import org.springframework.http.client.JdkClientHttpRequestFactory
-import org.springframework.scheduling.TaskScheduler
-import org.springframework.scheduling.annotation.Scheduled
-import org.springframework.stereotype.Component
-import org.springframework.stereotype.Service
-import org.springframework.transaction.support.TransactionTemplate
-import org.springframework.web.client.RestClient
-import java.io.ByteArrayInputStream
+import dev.spendly.fx.domain.BnrClient
+import dev.spendly.fx.domain.BnrXmlParser
+import dev.spendly.fx.domain.FxRate
+import dev.spendly.fx.persistence.FxRateRepository
+import dev.spendly.shared.config.SpendlyProperties
 import java.io.InputStream
 import java.math.BigDecimal
 import java.math.MathContext
 import java.math.RoundingMode
-import java.net.http.HttpClient
-import java.time.Instant
 import java.time.LocalDate
-
-/** Fetches BNR XML over HTTP. The only outbound request the app makes; it sends no user data. */
-@Component
-class BnrClient(private val properties: SpendlyProperties) {
-    private val restClient: RestClient by lazy {
-        val timeout = properties.fx.bnr.timeout
-        val http = HttpClient.newBuilder().connectTimeout(timeout).followRedirects(HttpClient.Redirect.NORMAL).build()
-        RestClient.builder().requestFactory(JdkClientHttpRequestFactory(http).apply { setReadTimeout(timeout) }).build()
-    }
-
-    fun fetchDaily(): List<FxRate> = fetch(properties.fx.bnr.dailyUrl)
-
-    fun fetchYear(year: Int): List<FxRate> = fetch(properties.fx.bnr.yearlyUrlTemplate.replace("{year}", year.toString()))
-
-    private fun fetch(url: String): List<FxRate> {
-        val bytes = restClient.get().uri(url).retrieve().body(ByteArray::class.java) ?: return emptyList()
-        return BnrXmlParser.parse(ByteArrayInputStream(bytes))
-    }
-}
+import org.slf4j.LoggerFactory
+import org.springframework.stereotype.Service
+import org.springframework.transaction.support.TransactionTemplate
 
 /**
  * FX rates for `amount_base` (plan section 8): BNR rate for the booking date, or the last earlier one
@@ -105,32 +80,5 @@ class FxService(
     companion object {
         const val SOURCE_BNR = "BNR"
         const val SOURCE_MANUAL = "MANUAL"
-    }
-}
-
-/** Daily BNR fetch (banking days ~13:00 Romanian time) plus one fetch shortly after startup. */
-@Component
-class FxScheduler(
-    private val fx: FxService,
-    private val properties: SpendlyProperties,
-    private val taskScheduler: TaskScheduler,
-) {
-    private val log = LoggerFactory.getLogger(javaClass)
-
-    @Scheduled(cron = "\${spendly.fx.bnr.cron:0 30 13 * * MON-FRI}", zone = "\${spendly.fx.bnr.zone:Europe/Bucharest}")
-    fun daily() = refresh()
-
-    @EventListener(ApplicationReadyEvent::class)
-    fun onStartup() {
-        if (properties.fx.bnr.enabled) taskScheduler.schedule(::refresh, Instant.now().plusSeconds(5))
-    }
-
-    private fun refresh() {
-        if (!properties.fx.bnr.enabled) return
-        try {
-            fx.refreshDaily()
-        } catch (e: Exception) {
-            log.warn("BNR daily rate fetch failed: {} (import rates manually via POST /api/fx-rates/import)", e.javaClass.simpleName)
-        }
     }
 }

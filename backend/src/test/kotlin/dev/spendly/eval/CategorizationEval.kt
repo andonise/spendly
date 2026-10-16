@@ -1,11 +1,17 @@
 package dev.spendly.eval
 
-import dev.spendly.categorization.CategorizationEngine
-import dev.spendly.categorization.Category
-import dev.spendly.categorization.LlmMode
-import dev.spendly.categorization.TxInput
-import dev.spendly.parsing.Csv
+import dev.spendly.categorization.domain.CategorizationEngine
+import dev.spendly.categorization.domain.TxInput
+import dev.spendly.categorization.llm.LlmMode
+import dev.spendly.statement.parsing.Csv
 import dev.spendly.support.TestPaths
+import dev.spendly.transaction.Category
+import java.nio.charset.StandardCharsets
+import java.nio.file.Files
+import java.nio.file.Path
+import java.security.SecureRandom
+import java.util.Base64
+import java.util.UUID
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -16,12 +22,6 @@ import org.springframework.test.context.DynamicPropertySource
 import org.testcontainers.postgresql.PostgreSQLContainer
 import org.testcontainers.utility.DockerImageName
 import tools.jackson.databind.json.JsonMapper
-import java.nio.charset.StandardCharsets
-import java.nio.file.Files
-import java.nio.file.Path
-import java.security.SecureRandom
-import java.util.Base64
-import java.util.UUID
 
 /**
  * Categorization evaluation (not part of `test`): `.\gradlew.bat evalCategorization -Pgolden=<csv> [-PllmOff=true]`.

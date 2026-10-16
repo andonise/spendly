@@ -1,9 +1,22 @@
 package dev.spendly.categorization
 
 import com.sun.net.httpserver.HttpServer
-import dev.spendly.config.SpendlyProperties
+import dev.spendly.categorization.domain.LlmBatch
+import dev.spendly.categorization.domain.LlmPrompts
+import dev.spendly.categorization.domain.TxInput
+import dev.spendly.categorization.llm.LlmGateway
+import dev.spendly.categorization.llm.LlmUnavailableException
+import dev.spendly.shared.config.SpendlyProperties
+import dev.spendly.shared.observability.CategorizationMetrics
 import dev.spendly.support.Fixtures
+import dev.spendly.transaction.Category
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
+import java.math.BigDecimal
+import java.net.InetSocketAddress
+import java.nio.charset.StandardCharsets
+import java.time.Duration
+import java.util.UUID
+import java.util.concurrent.CopyOnWriteArrayList
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -13,12 +26,6 @@ import org.junit.jupiter.api.assertThrows
 import org.springframework.ai.ollama.OllamaChatModel
 import org.springframework.ai.ollama.api.OllamaApi
 import org.springframework.ai.ollama.api.OllamaChatOptions
-import java.math.BigDecimal
-import java.net.InetSocketAddress
-import java.nio.charset.StandardCharsets
-import java.time.Duration
-import java.util.UUID
-import java.util.concurrent.CopyOnWriteArrayList
 
 /**
  * AC-SD-2 at the HTTP level: the real Spring AI Ollama client talks to a recording stub of Ollama's /api/chat.

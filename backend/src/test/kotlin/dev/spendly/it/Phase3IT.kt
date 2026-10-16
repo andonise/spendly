@@ -1,30 +1,34 @@
 package dev.spendly.it
 
-import dev.spendly.account.AccountCreate
-import dev.spendly.account.AccountService
-import dev.spendly.account.AccountType
-import dev.spendly.categorization.LlmMode
-import dev.spendly.crypto.HmacService
-import dev.spendly.events.ChangeCause
-import dev.spendly.events.EventEnvelope
-import dev.spendly.events.EventTypes
-import dev.spendly.events.ImportedTransaction
-import dev.spendly.events.ParserInfo
-import dev.spendly.events.Producers
-import dev.spendly.events.TransactionsChangedPayload
-import dev.spendly.events.TransactionsImportedPayload
-import dev.spendly.importing.ImportService
-import dev.spendly.parsing.TxHashes
-import dev.spendly.sanitizer.Descriptions
-import dev.spendly.sanitizer.Sanitizer
+import dev.spendly.account.domain.AccountService
+import dev.spendly.account.persistence.AccountType
+import dev.spendly.account.web.AccountCreate
+import dev.spendly.categorization.llm.LlmMode
+import dev.spendly.shared.crypto.HmacService
+import dev.spendly.shared.messaging.ChangeCause
+import dev.spendly.shared.messaging.EventEnvelope
+import dev.spendly.shared.messaging.EventTypes
+import dev.spendly.shared.messaging.ImportedTransaction
+import dev.spendly.shared.messaging.ParserInfo
+import dev.spendly.shared.messaging.Producers
+import dev.spendly.shared.messaging.TransactionsChangedPayload
+import dev.spendly.shared.messaging.TransactionsImportedPayload
+import dev.spendly.shared.privacy.Descriptions
+import dev.spendly.shared.privacy.Sanitizer
 import dev.spendly.statement.FileType
-import dev.spendly.statement.StatementRepository
+import dev.spendly.statement.importing.ImportService
+import dev.spendly.statement.parsing.TxHashes
+import dev.spendly.statement.persistence.StatementRepository
 import dev.spendly.support.HashEmbeddingModel
 import dev.spendly.support.IntegrationTest
 import dev.spendly.support.ScriptedChatModel
 import dev.spendly.support.TestIbans
 import dev.spendly.support.eventually
-import dev.spendly.transfer.TransferMatcherService
+import dev.spendly.transfer.domain.TransferMatcherService
+import java.time.LocalDate
+import java.util.UUID
+import java.util.concurrent.Callable
+import java.util.concurrent.Executors
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -44,10 +48,6 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import org.springframework.transaction.support.TransactionTemplate
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.json.JsonMapper
-import java.time.LocalDate
-import java.util.UUID
-import java.util.concurrent.Callable
-import java.util.concurrent.Executors
 
 /**
  * Phase 3 end to end on Testcontainers: TransactionsImported → StatementParsed (outbox → Kafka) → transfer detection
