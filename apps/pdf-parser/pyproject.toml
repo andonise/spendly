@@ -16,7 +16,7 @@ dependencies = [
 ]
 
 [dependency-groups]
-dev = ["pytest==9.1.1", "httpx==0.28.1"]
+dev = ["pytest==9.1.1", "httpx==0.28.1", "pytest-cov==7.1.0"]
 
 [project.scripts]
 spendly-pdf-parser = "spendly_pdf_parser.__main__:main"
@@ -30,7 +30,8 @@ exclude-newer = "2026-10-01T00:00:00Z"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-ra"
+# Coverage runs with every pytest call and fails below 80% lines (pass --no-cov for a quick single test).
+addopts = "-ra --cov --cov-report=term-missing:skip-covered --cov-report=xml"
 filterwarnings = [
     # starlette 1.x suggests httpx2 for TestClient; httpx 0.28.1 still works
     "ignore:Using `httpx` with `starlette.testclient` is deprecated",
@@ -38,6 +39,13 @@ filterwarnings = [
 markers = [
     "integration: needs the compose Redpanda on localhost:19092 and a running pdf-parser (skipped otherwise)",
 ]
+
+[tool.coverage.run]
+source = ["spendly_pdf_parser"]
+
+[tool.coverage.report]
+fail_under = 80
+precision = 1
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/spendly_pdf_parser"]
