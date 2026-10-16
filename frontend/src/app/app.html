@@ -16,7 +16,7 @@
     </span>
   }
   @if (openQuestions() > 0) {
-    <a mat-flat-button class="questions-cta" routerLink="/statements" [queryParams]="{ status: 'NEEDS_INPUT' }">
+    <a mat-flat-button class="questions-cta" routerLink="/questions">
       <mat-icon>help</mat-icon>
       {{ openQuestions() }} {{ openQuestions() === 1 ? 'question needs' : 'questions need' }} your input
     </a>
@@ -43,7 +43,7 @@
         >
           <mat-icon matListItemIcon>{{ item.icon }}</mat-icon>
           <span matListItemTitle>{{ item.label }}</span>
-          @if (item.path === '/statements' && openQuestions() > 0) {
+          @if (item.path === '/questions' && openQuestions() > 0) {
             <span matListItemMeta class="nav-badge" [attr.aria-label]="openQuestions() + ' open questions'">{{ openQuestions() }}</span>
           }
         </a>

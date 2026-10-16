@@ -122,11 +122,12 @@ describe('Mock API', () => {
     expect((await problemOf(statements.uploadStatement(ACCOUNT_IDS.current, sampleFile('notes.txt')))).status).toBe(415);
   });
 
-  it('seeds accounts, a CATEGORIZED and a NEEDS_INPUT statement, and open questions', async () => {
+  it('seeds accounts, two CATEGORIZED and a NEEDS_INPUT statement, and open questions', async () => {
     const list = await firstValueFrom(accounts.listAccounts());
     expect(list.map((a) => a.ibanMasked)).toEqual(['RO**…9999', 'RO**…3333', 'RO**…6666']);
     const all = await firstValueFrom(statements.listStatements());
-    expect(all.map((s) => s.status).sort()).toEqual(['CATEGORIZED', 'NEEDS_INPUT']);
+    // Phase 3: the Generic Bank current statement is seeded too (CATEGORIZED), for the transfer pairs.
+    expect(all.map((s) => s.status).sort()).toEqual(['CATEGORIZED', 'CATEGORIZED', 'NEEDS_INPUT']);
     const needsInput = await firstValueFrom(statements.listStatements({ status: 'NEEDS_INPUT' }));
     expect(needsInput).toHaveLength(1);
     const open = await firstValueFrom(questions.listOpenQuestions({ status: 'OPEN' }));

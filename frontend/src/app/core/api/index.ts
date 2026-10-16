@@ -8,3 +8,5 @@ export * from './api-options';
 export * from './accounts.api';
 export * from './statements.api';
 export * from './questions.api';
+export * from './transactions.api';
+export * from './counterparties.api';
