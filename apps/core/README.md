@@ -5,8 +5,9 @@ detection, categorization (rules, embeddings, local LLM) and the REST API for `a
 
 ```bash
 ./gradlew bootRun                     # http://localhost:8080 (needs the compose stack: postgres, redpanda)
-./gradlew test                        # unit + integration tests (Testcontainers) + module boundaries
-./gradlew evalCategorization          # categorization accuracy on eval/golden (-Pgolden=<csv>, -PllmOff=true)
+./gradlew check                       # tests (Testcontainers) + module boundaries + coverage gate (80% of lines)
+./gradlew evalCategorization          # categorization accuracy on eval/golden (-Pgolden=<csv>, -PllmOff=true,
+                                      #   -PminAccuracy=0.95 -PminCoverage=0.75 to fail below a floor)
 ```
 
 ## Structure: modular monolith
