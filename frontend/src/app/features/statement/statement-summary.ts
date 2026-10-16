@@ -1,7 +1,9 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 import type { EChartsCoreOption } from 'echarts/core';
+import { RouterLink } from '@angular/router';
 import { NgxEchartsDirective } from 'ngx-echarts';
 import { Account, Statement } from '../../core/api';
 import { categoryLabel } from '../../shared/categories';
@@ -21,27 +23,32 @@ function prefersDark(): boolean {
 @Component({
   selector: 'app-statement-summary',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [MatCardModule, MatIconModule, NgxEchartsDirective, CategoryChip, MoneyPipe],
+  imports: [RouterLink, MatButtonModule, MatCardModule, MatIconModule, NgxEchartsDirective, CategoryChip, MoneyPipe],
   template: `
     @if (statement().summary; as s) {
       <div class="tiles">
         <div class="tile">
           <div class="tile-label">Spent</div>
-          <div class="tile-value">{{ abs(s.spendBase) | money }}</div>
+          <div class="tile-value spend">{{ abs(s.spendBase) | money }}</div>
         </div>
         <div class="tile">
           <div class="tile-label">Income</div>
-          <div class="tile-value">{{ s.incomeBase | money }}</div>
+          <div class="tile-value income">{{ abs(s.incomeBase) | money }}</div>
         </div>
         <div class="tile">
           <div class="tile-label">Transactions</div>
           <div class="tile-value">{{ s.transactionCount }}</div>
         </div>
-        <div class="tile">
-          <div class="tile-label">Internal transfers</div>
-          <div class="tile-value">{{ s.internalTransferCount }}</div>
-          <div class="tile-note">excluded from spending</div>
-        </div>
+      </div>
+
+      <div class="actions-row">
+        <p class="internal-note muted">
+          <mat-icon aria-hidden="true">sync_alt</mat-icon>
+          {{ s.internalTransferCount }} internal {{ s.internalTransferCount === 1 ? 'transfer' : 'transfers' }} excluded
+        </p>
+        <a mat-stroked-button class="view-transactions" routerLink="/transactions" [queryParams]="{ statementId: statement().id }">
+          <mat-icon>list_alt</mat-icon> View transactions
+        </a>
       </div>
 
       <mat-card appearance="outlined" class="section">
@@ -61,7 +68,7 @@ function prefersDark(): boolean {
                 <tr>
                   <td><app-category-chip [category]="row.category" /></td>
                   <td class="num">{{ row.count }}</td>
-                  <td class="num" [class.amount-negative]="row.amountBase.startsWith('-')">{{ row.amountBase | money }}</td>
+                  <td class="num">{{ abs(row.amountBase) | money }}</td>
                 </tr>
               }
             </tbody>
@@ -85,7 +92,8 @@ function prefersDark(): boolean {
     .tile { padding: 16px; border-radius: 12px; background: var(--mat-sys-surface-container); }
     .tile-label { font: var(--mat-sys-label-large); color: var(--mat-sys-on-surface-variant); }
     .tile-value { font: var(--mat-sys-headline-small); margin-top: 4px; }
-    .tile-note { font: var(--mat-sys-body-small); color: var(--mat-sys-on-surface-variant); }
+    .actions-row { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+    .internal-note { display: inline-flex; align-items: center; gap: 6px; margin: 0; }
     .section { margin-bottom: 16px; }
     .chart { height: 320px; margin: 8px 0 16px; }
     .breakdown { width: 100%; border-collapse: collapse; }

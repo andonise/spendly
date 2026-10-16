@@ -12,6 +12,11 @@ import {
   AnswersSubmission,
   CATEGORIES,
   Category,
+  CategorySource,
+  Counterparty,
+  CounterpartyKind,
+  CounterpartyRef,
+  CounterpartyUpdate,
   FileType,
   Problem,
   ProcessingStep,
@@ -21,16 +26,27 @@ import {
   StatementError,
   StatementStatus,
   StatementSummary,
+  TRANSACTION_SORTS,
+  TRANSFER_STATUSES,
+  Transaction,
+  TransactionPage,
+  TransactionSort,
+  TransferStatus,
   UploadAccepted,
 } from '../models/api.models';
 import {
   ACCOUNT_IDS,
   CREDIT_CARD_AUGUST,
+  CounterpartyKey,
   GENERIC_BANK_AUGUST,
+  GENERIC_BANK_SEED_ANSWERS,
   REVOLUT_AUGUST,
   SEED_ACCOUNTS,
+  SEED_COUNTERPARTIES,
   SEED_IBANS,
+  STATEMENT_IDS,
   TxnTemplate,
+  syntheticToken,
 } from './mock-data';
 
 /** Time source for the simulated pipeline (ms since epoch). Tests replace it with a manual clock. */
@@ -63,17 +79,38 @@ export function apiGroupOf(path: string): ApiGroup | null {
   if (/^\/api\/statements\/[^/]+\/(questions|answers)$/.test(path)) return 'questions';
   if (/^\/api\/statements(\/|$)/.test(path)) return 'statements';
   if (/^\/api\/questions(\/|$)/.test(path)) return 'questions';
+  if (/^\/api\/transactions(\/|$)/.test(path)) return 'transactions';
+  if (/^\/api\/counterparties(\/|$)/.test(path)) return 'counterparties';
   return null;
 }
 
 interface MockTxn {
   id: string;
+  /** Insertion order: stable tie-breaker for sorting. */
+  seq: number;
   accountId: string;
+  statementId: string;
   date: string;
   description: string;
   amount: string;
   category: Category | null;
+  categorySource: CategorySource | null;
+  confidence: number | null;
+  transferStatus: TransferStatus;
+  transferPairId: string | null;
+  pairedTransactionId: string | null;
+  counterpartyToken: string | null;
+  /** State before an own-account counterparty made it INTERNAL (restored when unset). */
+  beforeOwnAccount?: Pick<MockTxn, 'transferStatus' | 'category' | 'categorySource' | 'confidence'>;
   template: TxnTemplate;
+}
+
+interface MockCounterparty {
+  token: string;
+  kind: CounterpartyKind;
+  label: string | null;
+  isOwnAccount: boolean;
+  ownAccountId: string | null;
 }
 
 interface Transition {
@@ -112,6 +149,10 @@ export class MockBackend {
   private readonly statements = new Map<string, MockStatement>();
   private readonly questions = new Map<string, Question>();
   private readonly questionTxn = new Map<string, MockTxn>();
+  private readonly counterparties = new Map<string, MockCounterparty>();
+  /** TRANSFER questions closed by an own-account counterparty (not by the user). */
+  private readonly autoResolved = new Set<string>();
+  private txnSeq = 0;
 
   constructor() {
     this.seed();
@@ -156,6 +197,18 @@ export class MockBackend {
     if (path === '/api/questions' && m === 'GET') return ok(this.listOpenQuestions(params));
     if ((match = path.match(/^\/api\/questions\/([^/]+)\/answer$/)) && m === 'POST') {
       return { status: 202, body: this.answerQuestion(decodeURIComponent(match[1]), body as Answer) };
+    }
+
+    // transactions
+    if (path === '/api/transactions' && m === 'GET') return ok(this.listTransactions(params));
+    if ((match = path.match(/^\/api\/transactions\/([^/]+)$/)) && m === 'GET') {
+      return ok(this.getTransaction(decodeURIComponent(match[1])));
+    }
+
+    // counterparties
+    if (path === '/api/counterparties' && m === 'GET') return ok(this.listCounterparties());
+    if ((match = path.match(/^\/api\/counterparties\/([^/]+)$/)) && m === 'PUT') {
+      return ok(this.updateCounterparty(decodeURIComponent(match[1]), body as CounterpartyUpdate));
     }
 
     throw problem(404, 'Not Found', `No mock for ${m} ${path}`);
@@ -401,7 +454,14 @@ export class MockBackend {
         break;
       }
       case 'CATEGORIZED':
-        for (const txn of rec.txns) txn.category ??= 'OTHER';
+        // Unknowns fall back to OTHER; unconfirmed transfers wait for their TRANSFER question.
+        for (const txn of rec.txns) {
+          if (txn.category === null && txn.transferStatus !== 'CANDIDATE') {
+            txn.category = 'OTHER';
+            txn.categorySource = 'RULE';
+            txn.confidence = null;
+          }
+        }
         progress.questionsOpen = 0;
         progress.transactionsCategorized = rec.txns.length;
         st.summary = summarize(rec.txns);
@@ -410,15 +470,25 @@ export class MockBackend {
   }
 
   private importTxns(rec: MockStatement): void {
-    rec.txns = rec.template.map((tpl) => ({
+    rec.txns = rec.template.map((tpl): MockTxn => ({
       id: uuid(),
+      seq: this.txnSeq++,
       accountId: rec.statement.accountId,
+      statementId: rec.statement.id,
       date: tpl.date,
       description: tpl.description,
       amount: tpl.amount,
       category: tpl.category,
+      categorySource: tpl.category === null ? null : (tpl.source ?? 'RULE'),
+      confidence: tpl.category === null ? null : (tpl.confidence ?? 1),
+      transferStatus: tpl.transfer ?? (tpl.category === 'INTERNAL_TRANSFER' ? 'INTERNAL' : 'NONE'),
+      transferPairId: null,
+      pairedTransactionId: null,
+      counterpartyToken: tpl.counterparty ? this.counterpartyToken(tpl.counterparty) : null,
       template: tpl,
     }));
+    // A counterparty already marked as own account makes new matching rows INTERNAL (step 4).
+    for (const txn of rec.txns) this.applyOwnAccount(txn);
     const dates = rec.txns.map((x) => x.date).sort();
     rec.statement.periodStart = dates[0] ?? null;
     rec.statement.periodEnd = dates[dates.length - 1] ?? null;
@@ -529,18 +599,218 @@ export class MockBackend {
     const q = this.questions.get(a.questionId)!;
     q.status = a.skip ? 'SKIPPED' : 'ANSWERED';
     const txn = this.questionTxn.get(q.id);
-    if (txn) txn.category = a.skip ? 'OTHER' : (a.category ?? 'OTHER');
+    if (!txn) return;
+    const category: Category = a.skip ? 'OTHER' : (a.category ?? 'OTHER');
+    Object.assign(txn, { category, categorySource: 'USER' satisfies CategorySource, confidence: 1 });
+    if (q.kind === 'TRANSFER') {
+      // Contract (Answer): INTERNAL_TRANSFER = yes → INTERNAL; another category = no → EXTERNAL with
+      // it; skip → EXTERNAL + OTHER. applyToFuture marks the counterparty as own account, but only
+      // together with INTERNAL_TRANSFER; with any other answer it is ignored.
+      const internal = category === 'INTERNAL_TRANSFER' && !a.skip;
+      txn.transferStatus = internal ? 'INTERNAL' : 'EXTERNAL';
+      txn.beforeOwnAccount = undefined;
+      if (internal && a.applyToFuture && txn.counterpartyToken) this.setOwnAccount(txn.counterpartyToken, true);
+      this.refreshSummaries();
+    }
+  }
+
+  // ---------------------------------------------------------------- transactions
+
+  private allTxns(): MockTxn[] {
+    for (const rec of this.statements.values()) this.advance(rec);
+    return [...this.statements.values()].flatMap((rec) => rec.txns);
+  }
+
+  private listTransactions(params: HttpParams): TransactionPage {
+    const errors: FieldError[] = [];
+    const accountId = params.get('accountId');
+    const statementId = params.get('statementId');
+    const from = params.get('from');
+    const to = params.get('to');
+    const category = params.get('category');
+    const transferStatus = params.get('transferStatus');
+    const sort = (params.get('sort') ?? 'bookingDate,desc') as TransactionSort;
+    const page = intParam(errors, params, 'page', 0, 0, Number.MAX_SAFE_INTEGER);
+    const size = intParam(errors, params, 'size', 50, 1, 200);
+    if (from !== null && !isIsoDate(from)) errors.push({ field: 'from', message: 'must be a date (yyyy-MM-dd)' });
+    if (to !== null && !isIsoDate(to)) errors.push({ field: 'to', message: 'must be a date (yyyy-MM-dd)' });
+    if (category !== null && !CATEGORIES.includes(category as Category)) {
+      errors.push({ field: 'category', message: 'is not a known category' });
+    }
+    if (transferStatus !== null && !TRANSFER_STATUSES.includes(transferStatus as TransferStatus)) {
+      errors.push({ field: 'transferStatus', message: 'must be one of ' + TRANSFER_STATUSES.join(', ') });
+    }
+    if (!TRANSACTION_SORTS.includes(sort)) errors.push({ field: 'sort', message: 'must be one of ' + TRANSACTION_SORTS.join(', ') });
+    if (errors.length) throw validation(errors);
+
+    const [key, dir] = sort.split(',') as ['bookingDate' | 'amount', 'asc' | 'desc'];
+    const sign = dir === 'asc' ? 1 : -1;
+    const matching = this.allTxns()
+      .filter(
+        (t) =>
+          (!accountId || t.accountId === accountId) &&
+          (!statementId || t.statementId === statementId) &&
+          (!from || t.date >= from) &&
+          (!to || t.date <= to) &&
+          (!category || t.category === category) &&
+          (!transferStatus || t.transferStatus === transferStatus),
+      )
+      .sort((a, b) => {
+        const primary = key === 'amount' ? toCents(a.amount) - toCents(b.amount) : a.date.localeCompare(b.date);
+        return primary !== 0 ? sign * primary : a.seq - b.seq;
+      });
+    return {
+      items: matching.slice(page * size, page * size + size).map((t) => this.toTransaction(t)),
+      page,
+      size,
+      totalItems: matching.length,
+      totalPages: Math.ceil(matching.length / size),
+    };
+  }
+
+  private getTransaction(id: string): Transaction {
+    const txn = this.allTxns().find((t) => t.id === id);
+    if (!txn) throw problem(404, 'Not Found', `Transaction ${id} does not exist.`, 'TRANSACTION_NOT_FOUND');
+    return this.toTransaction(txn);
+  }
+
+  private toTransaction(t: MockTxn): Transaction {
+    const cp = t.counterpartyToken ? this.counterparties.get(t.counterpartyToken) : undefined;
+    return {
+      id: t.id,
+      accountId: t.accountId,
+      accountLabel: this.accounts.get(t.accountId)?.label,
+      statementId: t.statementId,
+      bookingDate: t.date,
+      amount: t.amount,
+      currency: 'RON',
+      amountBase: t.amount,
+      fxRate: null,
+      description: t.description,
+      category: t.category,
+      categorySource: t.categorySource,
+      confidence: t.confidence,
+      transferStatus: t.transferStatus,
+      transferPairId: t.transferPairId,
+      pairedTransactionId: t.pairedTransactionId,
+      counterparty: cp ? this.toCounterpartyRef(cp) : null,
+    };
+  }
+
+  // ---------------------------------------------------------------- counterparties
+
+  private counterpartyToken(key: CounterpartyKey): string {
+    return syntheticToken(key);
+  }
+
+  private toCounterpartyRef(cp: MockCounterparty): CounterpartyRef {
+    return { token: cp.token, kind: cp.kind, label: cp.label, isOwnAccount: cp.isOwnAccount, ownAccountId: cp.ownAccountId };
+  }
+
+  private listCounterparties(): Counterparty[] {
+    const txns = this.allTxns();
+    return [...this.counterparties.values()]
+      .map((cp): Counterparty => {
+        const own = txns.filter((t) => t.counterpartyToken === cp.token).sort((a, b) => b.date.localeCompare(a.date));
+        return {
+          ...this.toCounterpartyRef(cp),
+          transactionCount: own.length,
+          lastSeen: own[0]?.date ?? null,
+          sampleDescription: own[0]?.description ?? null,
+        };
+      })
+      .filter((c) => c.transactionCount > 0)
+      .sort((a, b) => (b.lastSeen ?? '').localeCompare(a.lastSeen ?? ''));
+  }
+
+  private updateCounterparty(token: string, input: CounterpartyUpdate | null): Counterparty {
+    const errors: FieldError[] = [];
+    if (!/^[0-9a-f]{64}$/.test(token)) errors.push({ field: 'token', message: 'must be 64 lowercase hex characters' });
+    const body = (input ?? {}) as Partial<CounterpartyUpdate>;
+    if (typeof body.isOwnAccount !== 'boolean') errors.push({ field: 'isOwnAccount', message: 'is required (boolean)' });
+    if (body.label !== undefined && body.label !== null) {
+      if (typeof body.label !== 'string') errors.push({ field: 'label', message: 'must be a string' });
+      else if (body.label.length > 80) errors.push({ field: 'label', message: 'must be at most 80 characters' });
+    }
+    if (errors.length) throw validation(errors);
+    const cp = this.counterparties.get(token);
+    if (!cp) throw problem(404, 'Not Found', 'This counterparty does not exist.', 'COUNTERPARTY_NOT_FOUND');
+    if (cp.ownAccountId && body.isOwnAccount === false) {
+      throw problem(409, 'Conflict', 'This counterparty is the IBAN of a registered account; it cannot be unmarked.',
+        'COUNTERPARTY_IS_REGISTERED_ACCOUNT');
+    }
+    if ('label' in body) cp.label = body.label?.trim() || null;
+    this.setOwnAccount(token, body.isOwnAccount!);
+    return this.listCounterparties().find((c) => c.token === token) ?? { ...this.toCounterpartyRef(cp), transactionCount: 0 };
+  }
+
+  /**
+   * Marks/unmarks a counterparty as own account and re-runs step 4 of transfer detection:
+   * its CANDIDATE/NONE transactions become INTERNAL, or go back to their previous state when unset.
+   */
+  private setOwnAccount(token: string, isOwnAccount: boolean): void {
+    const cp = this.counterparties.get(token);
+    if (!cp || cp.isOwnAccount === isOwnAccount) return;
+    cp.isOwnAccount = isOwnAccount;
+    for (const txn of this.allTxns()) {
+      if (txn.counterpartyToken !== token) continue;
+      if (isOwnAccount) {
+        this.applyOwnAccount(txn);
+      } else if (txn.beforeOwnAccount) {
+        Object.assign(txn, txn.beforeOwnAccount);
+        txn.beforeOwnAccount = undefined;
+      }
+    }
+    // Open TRANSFER questions whose transaction is now INTERNAL are resolved (and reopened on undo).
+    for (const [qid, txn] of this.questionTxn) {
+      const q = this.questions.get(qid)!;
+      if (q.kind !== 'TRANSFER') continue;
+      if (q.status === 'OPEN' && txn.transferStatus === 'INTERNAL') {
+        q.status = 'ANSWERED';
+        this.autoResolved.add(qid);
+      } else if (this.autoResolved.has(qid) && txn.transferStatus === 'CANDIDATE') {
+        q.status = 'OPEN';
+        this.autoResolved.delete(qid);
+      }
+    }
+    this.refreshSummaries();
+  }
+
+  private applyOwnAccount(txn: MockTxn): void {
+    const cp = txn.counterpartyToken ? this.counterparties.get(txn.counterpartyToken) : undefined;
+    if (!cp?.isOwnAccount || (txn.transferStatus !== 'CANDIDATE' && txn.transferStatus !== 'NONE')) return;
+    txn.beforeOwnAccount = {
+      transferStatus: txn.transferStatus, category: txn.category, categorySource: txn.categorySource, confidence: txn.confidence,
+    };
+    Object.assign(txn, {
+      transferStatus: 'INTERNAL' satisfies TransferStatus,
+      category: 'INTERNAL_TRANSFER' satisfies Category,
+      categorySource: 'TRANSFER_MATCH' satisfies CategorySource,
+      confidence: 1,
+    });
+  }
+
+  /** Keeps CATEGORIZED summaries consistent after transfer statuses change. */
+  private refreshSummaries(): void {
+    for (const rec of this.statements.values()) {
+      if (rec.statement.status === 'CATEGORIZED') rec.statement.summary = summarize(rec.txns);
+    }
   }
 
   // ---------------------------------------------------------------- seed
 
   private seed(): void {
+    for (const [key, seed] of Object.entries(SEED_COUNTERPARTIES)) {
+      const token = this.counterpartyToken(key as CounterpartyKey);
+      this.counterparties.set(token, { token, ...seed });
+    }
     for (const account of SEED_ACCOUNTS) {
       this.accounts.set(account.id, clone(account));
       this.ibanFingerprints.set(fingerprintIban(SEED_IBANS[account.id]), account.id);
     }
     const seedStatement = (
       id: string, accountId: string, fileName: string, fileType: FileType, template: TxnTemplate[], createdAt: string,
+      answers?: Record<string, Category>,
     ): MockStatement => {
       const rec: MockStatement = {
         statement: {
@@ -552,14 +822,42 @@ export class MockBackend {
       this.statements.set(id, rec);
       // Run the whole plan instantly.
       this.planFrom(rec, 0);
-      for (const t of rec.plan) this.apply(rec, { ...t, at: Date.parse(createdAt) + 60_000 });
+      const at = Date.parse(createdAt) + 60_000;
+      for (const t of rec.plan) this.apply(rec, { ...t, at });
       rec.plan = [];
+      if (answers && rec.statement.status === 'NEEDS_INPUT') {
+        for (const [qid, txn] of this.questionTxn) {
+          if (txn.statementId === id && answers[txn.description]) this.applyAnswer({ questionId: qid, category: answers[txn.description] });
+        }
+        this.apply(rec, { at: at + 60_000, status: 'CATEGORIZED', step: 'APPLY_ANSWERS' });
+      }
       return rec;
     };
-    seedStatement('5a7c2d10-8e3b-4f6a-b1c2-0000000000c1', ACCOUNT_IDS.card, 'credit-card-2026-08.pdf', 'PDF',
+    seedStatement(STATEMENT_IDS.current, ACCOUNT_IDS.current, 'generic-bank-2026-08.csv', 'CSV',
+      GENERIC_BANK_AUGUST, '2026-09-02T18:25:00Z', GENERIC_BANK_SEED_ANSWERS);
+    seedStatement(STATEMENT_IDS.card, ACCOUNT_IDS.card, 'credit-card-2026-08.pdf', 'PDF',
       CREDIT_CARD_AUGUST, '2026-09-02T18:30:00Z');
-    seedStatement('5a7c2d10-8e3b-4f6a-b1c2-0000000000b2', ACCOUNT_IDS.revolut, 'revolut-2026-08.csv', 'CSV',
+    seedStatement(STATEMENT_IDS.revolut, ACCOUNT_IDS.revolut, 'revolut-2026-08.csv', 'CSV',
       REVOLUT_AUGUST, '2026-09-02T18:35:00Z');
+    this.linkSeedPairs();
+  }
+
+  /** Links seeded rows that share a pairKey (step 2, pair matching) as INTERNAL transfer pairs. */
+  private linkSeedPairs(): void {
+    const byKey = new Map<string, MockTxn[]>();
+    for (const rec of this.statements.values()) {
+      for (const txn of rec.txns) {
+        if (txn.template.pairKey) byKey.set(txn.template.pairKey, [...(byKey.get(txn.template.pairKey) ?? []), txn]);
+      }
+    }
+    for (const pair of byKey.values()) {
+      if (pair.length !== 2) continue;
+      const pairId = uuid();
+      const [a, b] = pair;
+      Object.assign(a, { transferStatus: 'INTERNAL', transferPairId: pairId, pairedTransactionId: b.id });
+      Object.assign(b, { transferStatus: 'INTERNAL', transferPairId: pairId, pairedTransactionId: a.id });
+    }
+    this.refreshSummaries();
   }
 
   private iso(ms: number = this.now()): string {
@@ -608,6 +906,17 @@ function checkAnswer(errors: FieldError[], a: Answer | null | undefined, field: 
   if (a?.hint && a.hint.length > 500) errors.push({ field: `${field}.hint`, message: 'must be at most 500 characters' });
 }
 
+function intParam(errors: FieldError[], params: HttpParams, field: string, fallback: number, min: number, max: number): number {
+  const raw = params.get(field);
+  if (raw === null || raw === '') return fallback;
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < min || n > max) {
+    errors.push({ field, message: `must be an integer between ${min} and ${max}` });
+    return fallback;
+  }
+  return n;
+}
+
 function isIsoDate(value: unknown): value is string {
   return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value));
 }
@@ -639,9 +948,12 @@ function fromCents(cents: number): string {
 
 /**
  * Totals for a categorized statement, per the contract's StatementSummary: all amounts are
- * absolute (non-negative); internal transfers are counted but excluded from totals and byCategory.
+ * absolute (non-negative); INTERNAL transfers are counted (`internalTransferCount`) but excluded
+ * from totals and byCategory; unconfirmed CANDIDATE transfers are excluded as well.
  */
-export function summarize(txns: { amount: string; category: Category | null }[]): StatementSummary {
+export function summarize(
+  txns: { amount: string; category: Category | null; transferStatus?: TransferStatus }[],
+): StatementSummary {
   const by = new Map<Category, { cents: number; count: number }>();
   let spend = 0;
   let income = 0;
@@ -649,10 +961,12 @@ export function summarize(txns: { amount: string; category: Category | null }[])
   for (const t of txns) {
     const category = t.category ?? 'OTHER';
     const cents = toCents(t.amount);
-    if (category === 'INTERNAL_TRANSFER') {
+    const status = t.transferStatus ?? (category === 'INTERNAL_TRANSFER' ? 'INTERNAL' : 'NONE');
+    if (status === 'INTERNAL') {
       internal++;
       continue;
     }
+    if (status === 'CANDIDATE') continue; // unconfirmed transfer: excluded from totals until resolved
     if (cents < 0) spend -= cents;
     else income += cents;
     const entry = by.get(category) ?? { cents: 0, count: 0 };

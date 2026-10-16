@@ -1,5 +1,5 @@
 /** Endpoint groups that can be mocked independently (they match the OpenAPI tags). */
-export type ApiGroup = 'accounts' | 'statements' | 'questions';
+export type ApiGroup = 'accounts' | 'statements' | 'questions' | 'transactions' | 'counterparties';
 
 export interface Environment {
   production: boolean;

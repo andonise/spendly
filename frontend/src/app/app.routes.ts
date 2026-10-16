@@ -34,6 +34,16 @@ export const routes: Routes = [
     loadComponent: () => import('./features/transactions/transactions-page').then((m) => m.TransactionsPage),
   },
   {
+    path: 'questions',
+    title: 'Questions · Spendly',
+    loadComponent: () => import('./features/questions/questions-page').then((m) => m.QuestionsPage),
+  },
+  {
+    path: 'counterparties',
+    title: 'Counterparties · Spendly',
+    loadComponent: () => import('./features/counterparties/counterparties-page').then((m) => m.CounterpartiesPage),
+  },
+  {
     path: 'learning',
     title: 'Learning · Spendly',
     loadComponent: () => import('./features/learning/learning-page').then((m) => m.LearningPage),
