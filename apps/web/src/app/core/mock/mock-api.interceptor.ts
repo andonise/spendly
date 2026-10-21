@@ -13,7 +13,7 @@ const STATUS_TEXT: Record<number, string> = {
 /**
  * In-memory mock of the Spendly API. Answers requests for every endpoint group that is
  * mocked in the environment (`mock.accounts`, `mock.statements`, `mock.questions`,
- * `mock.transactions`, `mock.counterparties`) and
+ * `mock.transactions`, `mock.counterparties`, `mock.reports`) and
  * passes everything else through to the real backend.
  * Register it LAST so the other interceptors (errors, …) see its responses.
  */

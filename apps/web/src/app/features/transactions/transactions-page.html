@@ -111,9 +111,9 @@
           } @else {
             <span class="muted">—</span>
           }
-          <!-- Inline category editing arrives in Phase 4 (PATCH /api/transactions/{id}/category). -->
-          <span matTooltip="Changing the category arrives in Phase 4">
-            <button mat-icon-button type="button" class="edit-category" disabled aria-label="Change category (coming in Phase 4)">
+          <span [matTooltip]="editBlocker(t) ?? 'Change category'">
+            <button mat-icon-button type="button" class="edit-category" [disabled]="!!editBlocker(t)" (click)="changeCategory(t)"
+                    [attr.aria-label]="editBlocker(t) ?? 'Change category'">
               <mat-icon>edit</mat-icon>
             </button>
           </span>

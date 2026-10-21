@@ -10,6 +10,7 @@ export const environment: Environment = {
     questions: false,
     transactions: false,
     counterparties: false,
+    reports: false,
   },
   mockOptions: {
     latencyMs: 0,

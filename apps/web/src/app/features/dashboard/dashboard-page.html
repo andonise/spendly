@@ -1,0 +1,260 @@
+<header class="page-header">
+  <div>
+    <h1 class="page-title">Dashboard</h1>
+    <p class="page-subtitle">Spending and income for any period. Internal transfers are left out.</p>
+  </div>
+  @if (questions.count() > 0) {
+    <a mat-stroked-button class="questions-badge" routerLink="/questions">
+      <mat-icon>help</mat-icon> {{ questions.count() }} {{ questions.count() === 1 ? 'question needs' : 'questions need' }} your input
+    </a>
+  }
+</header>
+
+<div class="controls" role="toolbar" aria-label="Choose the period">
+  <mat-button-toggle-group class="granularity" hideSingleSelectionIndicator [value]="granularity()"
+                           (change)="setGranularity($event.value)" aria-label="Period length">
+    @for (g of granularities; track g.value) {
+      <mat-button-toggle [value]="g.value">{{ g.label }}</mat-button-toggle>
+    }
+  </mat-button-toggle-group>
+
+  <div class="period-nav">
+    <button mat-icon-button type="button" class="prev" (click)="step(-1)" aria-label="Previous period"><mat-icon>chevron_left</mat-icon></button>
+    <span class="period-title" aria-live="polite">{{ title() }}</span>
+    <button mat-icon-button type="button" class="next" (click)="step(1)" aria-label="Next period"><mat-icon>chevron_right</mat-icon></button>
+  </div>
+
+  <mat-form-field subscriptSizing="dynamic" class="date">
+    <mat-label>{{ granularity() === 'CUSTOM' ? 'From' : 'Go to' }}</mat-label>
+    <input matInput type="date" class="f-from" [value]="range()?.from ?? ''" (change)="setDate('from', $any($event.target).value)" />
+  </mat-form-field>
+  @if (granularity() === 'CUSTOM') {
+    <mat-form-field subscriptSizing="dynamic" class="date">
+      <mat-label>To</mat-label>
+      <input matInput type="date" class="f-to" [value]="range()?.to ?? ''" (change)="setDate('to', $any($event.target).value)" />
+    </mat-form-field>
+  }
+
+  <mat-form-field subscriptSizing="dynamic" class="accounts">
+    <mat-label>Accounts</mat-label>
+    <mat-select multiple class="f-accounts" [value]="accountIds()" (valueChange)="setAccounts($event)" placeholder="All accounts">
+      @for (a of accountList(); track a.id) {
+        <mat-option [value]="a.id">{{ a.label }}</mat-option>
+      }
+    </mat-select>
+  </mat-form-field>
+</div>
+
+<div class="loading-slot">
+  @if (loading()) {
+    <mat-progress-bar mode="indeterminate" />
+  }
+</div>
+
+@if (failed()) {
+  <app-empty-state icon="cloud_off" title="The report could not be loaded" message="Check that the backend is running, then try again.">
+    <button mat-flat-button type="button" (click)="retry()">Try again</button>
+  </app-empty-state>
+} @else if (report(); as r) {
+  @if (r.stale || r.status === 'PENDING') {
+    <p class="updating" role="status"><mat-icon aria-hidden="true">sync</mat-icon> Updating… these numbers are from before your latest changes.</p>
+  }
+
+  @if (summary(); as s) {
+    @if (isEmpty()) {
+      <app-empty-state icon="insert_chart_outlined" title="No statements for this period"
+                       message="Upload the statements of every account for these dates to see your spending.">
+        <a mat-flat-button routerLink="/upload">Upload a statement</a>
+      </app-empty-state>
+    } @else {
+      @if (s.coverage.status === 'PARTIAL') {
+        <section class="banner coverage" role="note" aria-label="Partial coverage">
+          <mat-icon aria-hidden="true">info</mat-icon>
+          <div>
+            <strong>Partial period.</strong>
+            @if (coverageGaps().length) {
+              Some days have no statement yet, so totals may be low:
+              <ul class="gaps">
+                @for (gap of coverageGaps(); track gap) {
+                  <li>{{ gap }}</li>
+                }
+              </ul>
+            }
+            @if (s.unconfirmedTransfers.count > 0) {
+              <p class="unconfirmed">
+                {{ s.unconfirmedTransfers.count }} unconfirmed {{ s.unconfirmedTransfers.count === 1 ? 'transfer' : 'transfers' }}
+                ({{ s.unconfirmedTransfers.amountBase | money: r.currency }}) left out of the totals.
+                <a routerLink="/questions">Confirm them</a>
+              </p>
+            }
+          </div>
+        </section>
+      }
+
+      <div class="tiles">
+        <div class="tile">
+          <div class="tile-label">Spent</div>
+          <div class="tile-value spend">{{ s.totals.spendBase | money: r.currency }}</div>
+        </div>
+        <div class="tile">
+          <div class="tile-label">Income</div>
+          <div class="tile-value income">{{ s.totals.incomeBase | money: r.currency }}</div>
+        </div>
+        <div class="tile">
+          <div class="tile-label">Net</div>
+          <div class="tile-value net" [class.negative]="s.totals.netBase.startsWith('-')">{{ s.totals.netBase | money: r.currency }}</div>
+        </div>
+        @if (showSavingsRate()) {
+          <div class="tile">
+            <div class="tile-label">Savings rate</div>
+            <div class="tile-value savings-rate">{{ percent(s.totals.savingsRate) }}</div>
+            @if (s.totals.savingsDepositsBase !== '0.00') {
+              <div class="tile-note">{{ s.totals.savingsDepositsBase | money: r.currency }} to savings</div>
+            }
+          </div>
+        } @else {
+          <div class="tile">
+            <div class="tile-label">Transactions</div>
+            <div class="tile-value">{{ s.totals.transactionCount }}</div>
+          </div>
+        }
+      </div>
+
+      <section class="insights" aria-labelledby="insights-title">
+        <h2 id="insights-title" class="section-title">Insights</h2>
+        @if (!s.baseline.enoughHistory && r.granularity !== 'CUSTOM') {
+          <p class="history-note muted">
+            <mat-icon aria-hidden="true">hourglass_empty</mat-icon>
+            Not enough history yet for comparisons: {{ s.baseline.periodsUsed }} of {{ s.baseline.periodsRequired }} earlier
+            {{ granularity() === 'DAY' ? 'days' : granularity() === 'WEEK' ? 'weeks' : 'months' }} have complete statements.
+          </p>
+        }
+        @for (insight of insights(); track $index) {
+          <article class="insight" [class.warning]="insight.severity === 'WARNING'">
+            <mat-icon class="insight-icon" aria-hidden="true">{{ icon(insight) }}</mat-icon>
+            <p class="insight-message">
+              @if (insight.severity === 'WARNING') {
+                <span class="severity"><mat-icon aria-hidden="true">warning</mat-icon> Worth a look:</span>
+              }
+              {{ insight.message }}
+            </p>
+          </article>
+        } @empty {
+          <p class="muted no-insights">Nothing stands out in this period.</p>
+        }
+      </section>
+
+      <div class="grid">
+        <mat-card appearance="outlined" class="card categories">
+          <mat-card-header>
+            <mat-card-title>Spending by category</mat-card-title>
+          </mat-card-header>
+          <mat-card-content>
+            @if (s.byCategory.length) {
+              <div class="chart" [style.height.px]="40 + s.byCategory.length * 28" echarts [options]="categoryChart()" [initOpts]="{ renderer: 'svg' }"
+                   role="img" aria-label="Bar chart of spending by category; the table below lists the same values."></div>
+              <table class="breakdown">
+                <thead><tr><th>Category</th><th class="num">Share</th><th class="num">Amount</th></tr></thead>
+                <tbody>
+                  @for (row of s.byCategory; track row.category) {
+                    <tr>
+                      <td><app-category-chip [category]="row.category" /></td>
+                      <td class="num">{{ percent(row.share) }}</td>
+                      <td class="num">{{ row.amountBase | money: r.currency }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            } @else {
+              <p class="muted">No spending in this period.</p>
+            }
+          </mat-card-content>
+        </mat-card>
+
+        <div class="side">
+          @if (s.trend.length) {
+            <mat-card appearance="outlined" class="card trend">
+              <mat-card-header><mat-card-title>Daily spending</mat-card-title></mat-card-header>
+              <mat-card-content>
+                <div class="chart small" echarts [options]="trendChart()" [initOpts]="{ renderer: 'svg' }"
+                     role="img" aria-label="Column chart of spending per day."></div>
+              </mat-card-content>
+            </mat-card>
+          }
+
+          <mat-card appearance="outlined" class="card merchants">
+            <mat-card-header><mat-card-title>Top merchants</mat-card-title></mat-card-header>
+            <mat-card-content>
+              @if (s.topMerchants.length) {
+                <ol class="merchant-list">
+                  @for (m of s.topMerchants; track m.name) {
+                    <li>
+                      <span class="merchant-name">{{ m.name }}</span>
+                      <span class="muted merchant-count">{{ m.count }}×</span>
+                      <span class="num">{{ m.amountBase | money: r.currency }}</span>
+                    </li>
+                  }
+                </ol>
+              } @else {
+                <p class="muted">No merchants recognised yet.</p>
+              }
+            </mat-card-content>
+          </mat-card>
+        </div>
+      </div>
+
+      @if (s.history.length) {
+        <mat-card appearance="outlined" class="card history">
+          <mat-card-header>
+            <mat-card-title>Last 6 months</mat-card-title>
+            <mat-card-subtitle>* partial month (not every account covered)</mat-card-subtitle>
+          </mat-card-header>
+          <mat-card-content>
+            <div class="chart small" echarts [options]="historyChart()" [initOpts]="{ renderer: 'svg' }"
+                 role="img" aria-label="Spent and income per month for the last six months; the table below lists the same values."></div>
+            <table class="breakdown history-table">
+              <thead><tr><th>Month</th><th class="num">Spent</th><th class="num">Income</th></tr></thead>
+              <tbody>
+                @for (p of s.history; track p.from) {
+                  <tr>
+                    <td>{{ monthLabel(p.from) }}{{ p.coverage === 'PARTIAL' ? '*' : '' }}</td>
+                    <td class="num">{{ p.spendBase | money: r.currency }}</td>
+                    <td class="num">{{ p.incomeBase | money: r.currency }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </mat-card-content>
+        </mat-card>
+      }
+
+      @if (s.byAccount.length > 1) {
+        <mat-card appearance="outlined" class="card accounts-card">
+          <mat-card-header><mat-card-title>By account</mat-card-title></mat-card-header>
+          <mat-card-content>
+            <table class="breakdown">
+              <thead><tr><th>Account</th><th class="num">Spent</th><th class="num">Income</th></tr></thead>
+              <tbody>
+                @for (a of s.byAccount; track a.accountId) {
+                  <tr>
+                    <td>{{ a.accountLabel }}</td>
+                    <td class="num">{{ a.spendBase | money: r.currency }}</td>
+                    <td class="num">{{ a.incomeBase | money: r.currency }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </mat-card-content>
+        </mat-card>
+      }
+
+      <p class="footer-link">
+        <a mat-button routerLink="/transactions" [queryParams]="transactionsLink()"><mat-icon>list_alt</mat-icon> Transactions in this period</a>
+      </p>
+    }
+  } @else if (r.status === 'FAILED') {
+    <app-empty-state icon="error_outline" title="This report could not be built">
+      <button mat-flat-button type="button" (click)="retry()">Try again</button>
+    </app-empty-state>
+  }
+}

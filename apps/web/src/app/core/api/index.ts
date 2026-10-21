@@ -10,3 +10,4 @@ export * from './statements.api';
 export * from './questions.api';
 export * from './transactions.api';
 export * from './counterparties.api';
+export * from './reports.api';

@@ -260,3 +260,161 @@ export interface CounterpartyUpdate {
   label?: string | null;
   isOwnAccount: boolean;
 }
+
+// ---------------------------------------------------------------- Phase 4: reports and coverage
+
+/** `PATCH /api/transactions/{id}/category` body. */
+export interface CategoryUpdate {
+  /** Any category except INTERNAL_TRANSFER. */
+  category: Category;
+  /** Learn the merchant (user alias) for future statements. */
+  applyToFuture?: boolean;
+}
+
+export const GRANULARITIES = ['DAY', 'WEEK', 'MONTH', 'CUSTOM'] as const;
+export type Granularity = (typeof GRANULARITIES)[number];
+
+export type ReportStatus = 'PENDING' | 'READY' | 'STALE' | 'FAILED';
+export type CoverageStatus = 'COMPLETE' | 'PARTIAL';
+
+export interface DateRange {
+  from: IsoDate;
+  /** Inclusive. */
+  to: IsoDate;
+}
+
+/** CANDIDATE transfers in the period (excluded from totals until confirmed or matched). */
+export interface UnconfirmedTransfers {
+  count: number;
+  amountBase: Money;
+}
+
+export interface AccountCoverage {
+  accountId: Uuid;
+  accountLabel: string;
+  activeFrom: IsoDate;
+  closedAt?: IsoDate | null;
+  status: CoverageStatus;
+  /** Active days with no CATEGORIZED statement. */
+  gaps: DateRange[];
+}
+
+export interface Coverage {
+  from: IsoDate;
+  to: IsoDate;
+  status: CoverageStatus;
+  /** Accounts active in the range. */
+  accounts: AccountCoverage[];
+  unconfirmedTransfers: UnconfirmedTransfers;
+}
+
+export interface ReportTotals {
+  spendBase: Money;
+  incomeBase: Money;
+  /** income − spend (negative when spending exceeds income). */
+  netBase: Money;
+  savingsDepositsBase: Money;
+  /** (income − spend) / income; null below month length or without income. */
+  savingsRate?: number | null;
+  transactionCount: number;
+}
+
+export interface ReportCategoryTotal {
+  category: Category;
+  amountBase: Money;
+  count: number;
+  /** Share of total spend, 0..1. */
+  share: number;
+}
+
+export interface AccountTotal {
+  accountId: Uuid;
+  accountLabel: string;
+  spendBase: Money;
+  incomeBase: Money;
+}
+
+export interface MerchantTotal {
+  merchantId?: Uuid | null;
+  name: string;
+  category?: Category | null;
+  amountBase: Money;
+  count: number;
+}
+
+export interface TrendPoint {
+  from: IsoDate;
+  to: IsoDate;
+  spendBase: Money;
+  incomeBase: Money;
+  /** History points only. */
+  coverage?: CoverageStatus | null;
+}
+
+export interface Baseline {
+  periodsWanted: number;
+  periodsRequired: number;
+  periodsUsed: number;
+  enoughHistory: boolean;
+}
+
+export type InsightType =
+  | 'CATEGORY_SPIKE'
+  | 'UNUSUAL_TRANSACTION'
+  | 'MERCHANT_CONCENTRATION'
+  | 'FEES_AND_INTEREST'
+  | 'RECURRING_PAYMENTS'
+  | 'DUPLICATE_SUBSCRIPTIONS'
+  | 'SAVINGS_RATE';
+
+export interface Insight {
+  type: InsightType;
+  severity: 'INFO' | 'WARNING';
+  /** Short English sentence. */
+  message: string;
+  /** The numbers behind the message (amounts as Money strings); shape depends on `type`. */
+  data: Record<string, unknown>;
+}
+
+export interface ReportSummary {
+  coverage: Coverage;
+  totals: ReportTotals;
+  unconfirmedTransfers: UnconfirmedTransfers;
+  /** Spend by category, largest first (never INCOME or INTERNAL_TRANSFER). */
+  byCategory: ReportCategoryTotal[];
+  byAccount: AccountTotal[];
+  /** Top 10 by spend. */
+  topMerchants: MerchantTotal[];
+  /** One point per day of the period (empty for DAY). */
+  trend: TrendPoint[];
+  /** MONTH only: the 6 months ending with this one, oldest first. */
+  history: TrendPoint[];
+  baseline: Baseline;
+}
+
+export interface Report {
+  id: Uuid;
+  granularity: Granularity;
+  periodStart: IsoDate;
+  periodEnd: IsoDate;
+  /** null = all accounts. */
+  accountIds?: Uuid[] | null;
+  status: ReportStatus;
+  /** true while the numbers are from an older version and a rebuild is queued. */
+  stale: boolean;
+  version: number;
+  builtAt?: IsoDateTime | null;
+  currency: Currency;
+  /** null until the first build succeeds. */
+  summary?: ReportSummary | null;
+  insights: Insight[];
+}
+
+/** Query parameters of `getReport`. `to` is required for CUSTOM only. */
+export interface ReportQuery {
+  granularity: Granularity;
+  from: IsoDate;
+  to?: IsoDate;
+  /** Omitted or empty = all accounts (the combined view). */
+  accountIds?: Uuid[];
+}

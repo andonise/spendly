@@ -110,7 +110,7 @@ describe('TransactionsPage', () => {
     expect(listSpy).toHaveBeenLastCalledWith(expect.objectContaining({ sort: 'bookingDate,desc' }));
   });
 
-  it('shows badges, category provenance, and the Phase 4 edit placeholder', async () => {
+  it('shows badges, category provenance, and which rows can change category', async () => {
     await open('/transactions');
     expect(rowWith('TRANSFER CATRE REVOLUT').querySelector('.transfer-badge')?.textContent).toContain('Transfer');
     expect(rowWith('chirie august').querySelector('.transfer-badge')).toBeNull();
@@ -118,7 +118,9 @@ describe('TransactionsPage', () => {
     const unconfirmed = rowWith('Top-Up from').querySelector<HTMLAnchorElement>('a.unconfirmed-badge')!;
     expect(unconfirmed.textContent).toContain('Unconfirmed transfer');
     expect(unconfirmed.getAttribute('href')).toMatch(/^\/questions\?focus=/);
-    expect(rowWith('KAUFLAND 3412').querySelector('.edit-category')?.hasAttribute('disabled')).toBe(true);
+    expect(rowWith('KAUFLAND 3412').querySelector('.edit-category')?.hasAttribute('disabled')).toBe(false);
+    expect(rowWith('TRANSFER CATRE REVOLUT').querySelector('.edit-category')?.hasAttribute('disabled')).toBe(true);
+    expect(rowWith('Top-Up from').querySelector('.edit-category')?.hasAttribute('disabled')).toBe(true);
     expect(rowWith('KAUFLAND 3412').querySelector('.label-counterparty')).toBeNull(); // no counterparty
   });
 
@@ -161,6 +163,32 @@ describe('TransactionsPage', () => {
     expect(row.textContent).toContain('Savings at Test Bank');
     expect(row.querySelector('.transfer-badge')?.textContent).toContain('Transfer'); // now INTERNAL
     expect(row.querySelector('.unconfirmed-badge')).toBeNull();
+  });
+
+  it('"Change category" PATCHes the transaction and updates the row', async () => {
+    const patch = vi.spyOn(api, 'updateTransactionCategory');
+    await open('/transactions');
+    const id = rowWith('KAUFLAND 3412').dataset['txnId']!;
+    rowWith('KAUFLAND 3412').querySelector<HTMLButtonElement>('button.edit-category')!.click();
+    await settle();
+
+    const dialog = document.querySelector<HTMLElement>('app-category-dialog')!;
+    expect(dialog.textContent).toContain('KAUFLAND 3412');
+    expect(dialog.querySelector<HTMLButtonElement>('button.save')!.disabled).toBe(true); // unchanged category
+    dialog.querySelector<HTMLElement>('.mat-mdc-select-trigger')!.click();
+    await settle();
+    const options = [...document.querySelectorAll<HTMLElement>('mat-option')];
+    expect(options.some((o) => o.textContent!.includes('Internal transfer'))).toBe(false);
+    options.find((o) => o.textContent!.includes('Restaurants'))!.click();
+    dialog.querySelector<HTMLInputElement>('mat-checkbox input')!.click();
+    await settle();
+    dialog.querySelector<HTMLButtonElement>('button.save')!.click();
+    await settle();
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    await settle();
+
+    expect(patch).toHaveBeenCalledWith(id, { category: 'RESTAURANTS', applyToFuture: true });
+    expect(rowWith('KAUFLAND 3412').textContent).toContain('Restaurants');
   });
 
   it('end to end: answering a TRANSFER question "Yes" on /questions makes it INTERNAL on /transactions', async () => {

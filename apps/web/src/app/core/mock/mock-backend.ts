@@ -13,6 +13,9 @@ import {
   CATEGORIES,
   Category,
   CategorySource,
+  CategoryUpdate,
+  Granularity,
+  Report,
   Counterparty,
   CounterpartyKind,
   CounterpartyRef,
@@ -34,6 +37,7 @@ import {
   TransferStatus,
   UploadAccepted,
 } from '../models/api.models';
+import { CoveredSpan, ReportTxn, mockCoverage, mockReport, periodOf } from './mock-reports';
 import {
   ACCOUNT_IDS,
   CREDIT_CARD_AUGUST,
@@ -81,6 +85,7 @@ export function apiGroupOf(path: string): ApiGroup | null {
   if (/^\/api\/questions(\/|$)/.test(path)) return 'questions';
   if (/^\/api\/transactions(\/|$)/.test(path)) return 'transactions';
   if (/^\/api\/counterparties(\/|$)/.test(path)) return 'counterparties';
+  if (/^\/api\/(reports|coverage)(\/|$)/.test(path)) return 'reports';
   return null;
 }
 
@@ -132,7 +137,7 @@ interface MockStatement {
 }
 
 /**
- * In-memory implementation of every endpoint in contracts/openapi-draft.yaml.
+ * In-memory implementation of every endpoint in contracts/openapi-draft.yaml (reports are simplified: no baselines).
  *
  * The statement lifecycle is simulated lazily: each statement holds a plan of timed
  * transitions that is applied whenever the statement is read, using MOCK_CLOCK. That makes
@@ -204,6 +209,14 @@ export class MockBackend {
     if ((match = path.match(/^\/api\/transactions\/([^/]+)$/)) && m === 'GET') {
       return ok(this.getTransaction(decodeURIComponent(match[1])));
     }
+    if ((match = path.match(/^\/api\/transactions\/([^/]+)\/category$/)) && m === 'PATCH') {
+      return ok(this.updateTransactionCategory(decodeURIComponent(match[1]), body as CategoryUpdate));
+    }
+
+    // reports
+    if (path === '/api/reports' && m === 'GET') return ok(this.getReport(params));
+    if ((match = path.match(/^\/api\/reports\/([^/]+)$/)) && m === 'GET') return ok(this.getReportById(decodeURIComponent(match[1])));
+    if (path === '/api/coverage' && m === 'GET') return ok(this.getCoverage(params));
 
     // counterparties
     if (path === '/api/counterparties' && m === 'GET') return ok(this.listCounterparties());
@@ -674,6 +687,26 @@ export class MockBackend {
     return this.toTransaction(txn);
   }
 
+  /** Contract: CATEGORIZED statements only, never transfers, never INTERNAL_TRANSFER. */
+  private updateTransactionCategory(id: string, input: CategoryUpdate | null): Transaction {
+    const category = input?.category;
+    if (!CATEGORIES.includes(category as Category)) throw validation([{ field: 'category', message: 'is not a known category' }]);
+    if (category === 'INTERNAL_TRANSFER') {
+      throw validation([{ field: 'category', message: 'INTERNAL_TRANSFER is set by transfer detection or transfer questions' }]);
+    }
+    const txn = this.allTxns().find((t) => t.id === id);
+    if (!txn) throw problem(404, 'Not Found', `Transaction ${id} does not exist.`, 'NOT_FOUND');
+    if (this.statements.get(txn.statementId)?.statement.status !== 'CATEGORIZED') {
+      throw problem(409, 'Conflict', "The transaction's statement is not CATEGORIZED; answer its questions instead.", 'STATEMENT_NOT_CATEGORIZED');
+    }
+    if (txn.transferStatus === 'INTERNAL' || txn.transferStatus === 'CANDIDATE') {
+      throw problem(409, 'Conflict', 'The transaction is a transfer between your own accounts.', 'TRANSACTION_IS_TRANSFER');
+    }
+    Object.assign(txn, { category, categorySource: 'USER' satisfies CategorySource, confidence: 1 });
+    this.refreshSummaries();
+    return this.toTransaction(txn);
+  }
+
   private toTransaction(t: MockTxn): Transaction {
     const cp = t.counterpartyToken ? this.counterparties.get(t.counterpartyToken) : undefined;
     return {
@@ -695,6 +728,65 @@ export class MockBackend {
       pairedTransactionId: t.pairedTransactionId,
       counterparty: cp ? this.toCounterpartyRef(cp) : null,
     };
+  }
+
+  // ---------------------------------------------------------------- reports (always rebuilt: never stale in the mock)
+
+  /** Report identity → stable ID, like the backend's unique (granularity, period, scope). */
+  private readonly reportIds = new Map<string, { key: string; granularity: Granularity; from: string; to: string; accountIds: string[] | null }>();
+
+  private reportInputs(): { accounts: Account[]; spans: CoveredSpan[]; txns: ReportTxn[] } {
+    const txns = this.allTxns();
+    const categorized = [...this.statements.values()].filter((r) => r.statement.status === 'CATEGORIZED' && r.statement.periodStart);
+    const statementIds = new Set(categorized.map((r) => r.statement.id));
+    return {
+      accounts: this.listAccounts(),
+      spans: categorized.map((r) => ({ accountId: r.statement.accountId, from: r.statement.periodStart!, to: r.statement.periodEnd! })),
+      txns: txns
+        .filter((t) => statementIds.has(t.statementId))
+        .map((t) => ({ accountId: t.accountId, date: t.date, amount: t.amount, category: t.category, transferStatus: t.transferStatus, description: t.description })),
+    };
+  }
+
+  private accountIdsParam(params: HttpParams): string[] | null {
+    const ids = [...new Set(params.getAll('accountId') ?? [])].sort();
+    const unknown = ids.find((id) => !this.accounts.has(id));
+    if (unknown) throw validation([{ field: 'accountId', message: `unknown account ${unknown}` }]);
+    return ids.length ? ids : null;
+  }
+
+  private getReport(params: HttpParams): Report {
+    const range = periodOf(params.get('granularity'), params.get('from'), params.get('to'));
+    if (Array.isArray(range)) throw validation(range);
+    const granularity = params.get('granularity') as Granularity;
+    const accountIds = this.accountIdsParam(params);
+    const key = [granularity, range.from, range.to, accountIds?.join(',') ?? 'ALL'].join('|');
+    let entry = [...this.reportIds.entries()].find(([, v]) => v.key === key);
+    if (!entry) {
+      entry = [uuid(), { key, granularity, from: range.from, to: range.to, accountIds }];
+      this.reportIds.set(entry[0], entry[1]);
+    }
+    return this.buildReport(entry[0]);
+  }
+
+  private getReportById(id: string): Report {
+    if (!this.reportIds.has(id)) throw problem(404, 'Not Found', `Report ${id} not found`, 'NOT_FOUND');
+    return this.buildReport(id);
+  }
+
+  private buildReport(id: string): Report {
+    const r = this.reportIds.get(id)!;
+    const { accounts, spans, txns } = this.reportInputs();
+    return mockReport(id, r.granularity, { from: r.from, to: r.to }, r.accountIds, accounts, spans, txns);
+  }
+
+  private getCoverage(params: HttpParams): ReturnType<typeof mockCoverage> {
+    const range = periodOf('CUSTOM', params.get('from'), params.get('to'));
+    if (Array.isArray(range)) throw validation(range);
+    const accountIds = this.accountIdsParam(params);
+    const { accounts, spans, txns } = this.reportInputs();
+    const scoped = accounts.filter((a) => !accountIds || accountIds.includes(a.id));
+    return mockCoverage(range, scoped, spans, txns.filter((t) => scoped.some((a) => a.id === t.accountId)));
   }
 
   // ---------------------------------------------------------------- counterparties
