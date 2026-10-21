@@ -99,6 +99,29 @@ Each run shows a coverage table in its summary and keeps the reports as download
 CI has no Ollama: the tests use fake LLM clients, and the LLM eval stays a manual run.
 Dependabot (`.github/dependabot.yml`) opens weekly update PRs, only for versions at least 14 days old.
 
+## Branches and pull requests
+
+Nothing is pushed to `main` directly. Every change goes through a branch and a pull request:
+
+```bash
+git switch main && git pull
+git switch -c feat/reports            # feat/, fix/, chore/, docs/
+# ...commit...
+git push -u origin HEAD
+gh pr create                          # fills in .github/pull_request_template.md
+# CI runs on the PR; merge with "Squash and merge" once it is green
+git switch main && git pull           # the merged branch is deleted on GitHub automatically
+```
+
+The repository only allows squash merges, so each PR becomes one commit on `main`.
+
+GitHub does not protect branches of private repositories on the free plan, so the rule is enforced locally by
+`.githooks/pre-push`, which refuses any push to `main`. Enable it once per clone:
+
+```bash
+git config core.hooksPath .githooks
+```
+
 ## Privacy rules
 
 - Sanitize at the edge: IBANs and person names become HMAC tokens, card numbers are cut to the last 4,
