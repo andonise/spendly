@@ -122,6 +122,10 @@ GitHub does not protect branches of private repositories on the free plan, so th
 git config core.hooksPath .githooks
 ```
 
+The hook runs only on your own machine, inside `git push`; GitHub never executes it. It is committed so that a new
+clone gets it back with the one command above. It does not block edits made on github.com, pushes from a clone
+without the setting, or `git push --no-verify`.
+
 ## Privacy rules
 
 - Sanitize at the edge: IBANs and person names become HMAC tokens, card numbers are cut to the last 4,
