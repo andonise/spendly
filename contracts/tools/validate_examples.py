@@ -24,6 +24,7 @@ SCHEMA_BY_EVENT = {
     "InputRequired": "input-required.schema.json",
     "AnswersSubmitted": "answers-submitted.schema.json",
     "TransactionsChanged": "transactions-changed.schema.json",
+    "ReportRequested": "report-requested.schema.json",
 }
 
 
