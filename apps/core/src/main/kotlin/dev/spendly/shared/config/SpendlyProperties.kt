@@ -23,6 +23,7 @@ data class SpendlyProperties(
     val kafka: Kafka = Kafka(),
     val sse: Sse = Sse(),
     val fx: Fx = Fx(),
+    val reports: Reports = Reports(),
 ) {
     /**
      * LLM mode (plan section 3). [enabled] is the initial value of the runtime switch
@@ -100,6 +101,33 @@ data class SpendlyProperties(
             val timeout: Duration = Duration.ofSeconds(10),
         )
     }
+
+    /** Period reports and insight rules (plan Phase 4). Amounts are in the base currency. */
+    data class Reports(
+        /** Baseline periods wanted per scale (DAY: same weekday in previous weeks; WEEK: weeks; MONTH: months). */
+        val baselineDays: Int = 4,
+        val baselineWeeks: Int = 4,
+        val baselineMonths: Int = 3,
+        /** Fewer COMPLETE baseline periods than this: comparison rules are skipped ("Not enough history yet"). */
+        val minBaselinePeriods: Int = 2,
+        /** Category spike: current spend at least this much above the baseline average... */
+        val spikeThreshold: java.math.BigDecimal = java.math.BigDecimal("0.20"),
+        /** ...and at least this many base-currency units above it. */
+        val spikeMinDelta: java.math.BigDecimal = java.math.BigDecimal("50"),
+        /** Unusual transaction: amount >= factor x the merchant's median over the lookback, with enough history. */
+        val unusualFactor: java.math.BigDecimal = java.math.BigDecimal("3"),
+        val unusualMinAmount: java.math.BigDecimal = java.math.BigDecimal("100"),
+        val unusualMinHistory: Int = 3,
+        val unusualLookbackDays: Long = 180,
+        /** Merchant concentration: one merchant's share of a category (with 2+ merchants) at least this. */
+        val concentrationShare: java.math.BigDecimal = java.math.BigDecimal("0.50"),
+        val concentrationMinCategory: java.math.BigDecimal = java.math.BigDecimal("200"),
+        /** Recurring payment: one payment a month at the same merchant for this many consecutive months... */
+        val recurringMonths: Int = 3,
+        /** ...each month within this relative distance of their average. */
+        val recurringTolerance: java.math.BigDecimal = java.math.BigDecimal("0.10"),
+        val maxCustomDays: Long = 366,
+    )
 
     /** contracts/ folder: SPENDLY_CONTRACTS_DIR, else ../../contracts relative to the working directory (apps/core). */
     fun contractsPath(): Path {

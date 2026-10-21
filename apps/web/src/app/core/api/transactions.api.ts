@@ -1,7 +1,7 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
-import { Transaction, TransactionPage, TransactionQuery, Uuid } from '../models/api.models';
+import { CategoryUpdate, Transaction, TransactionPage, TransactionQuery, Uuid } from '../models/api.models';
 import { ApiCallOptions, injectApiUrl } from './api-options';
 
 /** OpenAPI tag `transactions`. Method names = operationIds. */
@@ -21,6 +21,11 @@ export class TransactionsApi {
 
   getTransaction(transactionId: Uuid, options?: ApiCallOptions): Observable<Transaction> {
     return this.http.get<Transaction>(this.url(`/api/transactions/${enc(transactionId)}`), options);
+  }
+
+  /** Manual correction; 409 STATEMENT_NOT_CATEGORIZED / TRANSACTION_IS_TRANSFER. */
+  updateTransactionCategory(transactionId: Uuid, update: CategoryUpdate, options?: ApiCallOptions): Observable<Transaction> {
+    return this.http.patch<Transaction>(this.url(`/api/transactions/${enc(transactionId)}/category`), update, options);
   }
 }
 

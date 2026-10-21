@@ -45,7 +45,7 @@ function setup(mockStatements: boolean) {
   FakeEventSource.instances = [];
   const env: Environment = {
     ...environment,
-    mock: { accounts: false, statements: mockStatements, questions: false, transactions: false, counterparties: false },
+    mock: { accounts: false, statements: mockStatements, questions: false, transactions: false, counterparties: false, reports: false },
     pollIntervalMs: 10,
   };
   TestBed.configureTestingModule({

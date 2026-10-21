@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spendly.local/contracts/schemas/report-requested.schema.json",
+  "title": "ReportRequested",
+  "description": "Asks the report builder to (re)build one report at one version. Written to the outbox by the aggregator (monthly reports made stale, months that got their first covered day, reports a reader is waiting for) and by the reports API (a stale report was viewed). Topic: spendly.report-requested, key: reportId. Consumer: report builder (group spendly-backend-report-builder). The builder saves its result only while reports.version still equals `version`, so an older request never overwrites a newer build (AC-TX-3).",
+  "allOf": [{ "$ref": "envelope.schema.json" }],
+  "properties": {
+    "eventType": { "const": "ReportRequested" },
+    "schemaVersion": { "const": 1 },
+    "producer": { "const": "spendly-backend" },
+    "payload": {
+      "type": "object",
+      "required": ["reportId", "version", "granularity", "periodStart", "periodEnd", "accountScope", "reason"],
+      "additionalProperties": false,
+      "properties": {
+        "reportId": { "$ref": "common.schema.json#/$defs/uuid" },
+        "version": { "type": "integer", "minimum": 1 },
+        "granularity": { "type": "string", "enum": ["DAY", "WEEK", "MONTH", "CUSTOM"] },
+        "periodStart": { "$ref": "common.schema.json#/$defs/isoDate" },
+        "periodEnd": { "$ref": "common.schema.json#/$defs/isoDate", "description": "Inclusive; >= periodStart" },
+        "accountScope": {
+          "type": "string",
+          "pattern": "^(ALL|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(,[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})*)$",
+          "description": "ALL (every account, the combined view) or the sorted, comma-separated account IDs"
+        },
+        "reason": {
+          "type": "string",
+          "enum": ["STALE_MONTHLY", "MONTH_STARTED", "STALE_VIEWED", "PENDING_REBUILD"],
+          "description": "STALE_MONTHLY: a monthly report became stale (rebuilt eagerly). MONTH_STARTED: a month got its first covered day. STALE_VIEWED: someone opened a stale report. PENDING_REBUILD: data changed while a build was running"
+        }
+      }
+    }
+  }
+}

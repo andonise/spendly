@@ -5,7 +5,7 @@ import { Environment } from './environment.model';
  * in-memory mock API; `false` goes to the real backend through the dev proxy
  * (proxy.conf.json → http://localhost:8080).
  *
- * Every group is real since the Phase 3 backend; set one to `true` to work on the UI without it.
+ * Every group is real since the Phase 3 backend (reports since Phase 4); set one to `true` to work on the UI without it.
  */
 export const environment: Environment = {
   production: false,
@@ -16,6 +16,7 @@ export const environment: Environment = {
     questions: false,
     transactions: false,
     counterparties: false,
+    reports: false,
   },
   mockOptions: {
     latencyMs: 250,

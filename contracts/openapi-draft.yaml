@@ -3,7 +3,7 @@ info:
   title: Spendly API (hand-written draft)
   version: 0.1.0-draft
   description: |
-    Hand-written draft of the Phase 1-3 endpoints (plan section 15). The frontend builds against
+    Hand-written draft of the Phase 1-4 endpoints (plan section 15). The frontend builds against
     it until the backend publishes its springdoc spec at /v3/api-docs; the published spec then
     becomes the source of truth.
 
@@ -21,6 +21,7 @@ tags:
   - name: questions
   - name: transactions
   - name: counterparties
+  - name: reports
 
 paths:
   /api/accounts:
@@ -360,6 +361,114 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Transaction' }
         '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/transactions/{transactionId}/category:
+    parameters:
+      - { name: transactionId, in: path, required: true, schema: { type: string, format: uuid } }
+    patch:
+      tags: [transactions]
+      operationId: updateTransactionCategory
+      summary: Correct a transaction's category (Phase 4)
+      description: |
+        Sets `category` (categorySource USER, confidence 1) and publishes TransactionsChanged
+        (cause MANUAL_CORRECTION) for the transaction's account and date, so every report covering that day
+        becomes STALE. With `applyToFuture`, the merchant is also learned like an answer with
+        "Apply to future" (a user alias), so later statements get the same category without asking.
+        Only for transactions of a CATEGORIZED statement (open statements are corrected through their
+        questions) that are not transfers between your own accounts.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CategoryUpdate' }
+      responses:
+        '200':
+          description: The updated transaction
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Transaction' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: |
+            STATEMENT_NOT_CATEGORIZED: the transaction's statement is not CATEGORIZED yet (answer its questions instead).
+            TRANSACTION_IS_TRANSFER: the transaction is INTERNAL or CANDIDATE (use transfer questions or counterparty labels).
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+
+  /api/reports:
+    get:
+      tags: [reports]
+      operationId: getReport
+      summary: Report for any period (cached, stale-while-rebuilding, or built now)
+      description: |
+        A report is identified by (granularity, from, to, accounts); the same request returns the same cached report
+        (AC-RP-4).
+        - READY: served from the database.
+        - STALE: the previous version is returned with `stale: true` while a rebuild is queued; poll
+          `GET /api/reports/{reportId}` until `stale` is false.
+        - Missing or FAILED: built during the request (numbers and insights are SQL, well under a second), then READY.
+        Period rules: DAY has from = to; WEEK starts on a Monday and lasts 7 days; MONTH is a calendar month;
+        CUSTOM is any range of 1 to 366 days. For DAY, WEEK and MONTH `to` may be omitted.
+      parameters:
+        - { name: granularity, in: query, required: true, schema: { $ref: '#/components/schemas/Granularity' } }
+        - { name: from, in: query, required: true, schema: { type: string, format: date } }
+        - { name: to, in: query, required: false, schema: { type: string, format: date }, description: 'Inclusive; required for CUSTOM' }
+        - name: accountId
+          in: query
+          required: false
+          description: Repeat to select several accounts; omitted = all accounts (the combined view)
+          schema: { type: array, items: { type: string, format: uuid } }
+          style: form
+          explode: true
+      responses:
+        '200':
+          description: The report
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Report' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+  /api/reports/{reportId}:
+    parameters:
+      - { name: reportId, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [reports]
+      operationId: getReportById
+      summary: Stored report by ID (used to poll a STALE report until it is rebuilt)
+      responses:
+        '200':
+          description: The report
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Report' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/coverage:
+    get:
+      tags: [reports]
+      operationId: getCoverage
+      summary: Which days each account covers in a date range, and the gaps
+      description: |
+        A day is covered for an account when a CATEGORIZED statement of that account includes it. Only accounts
+        active in the range count (active_from .. closed_at). COMPLETE = no gaps and no unconfirmed transfers.
+      parameters:
+        - { name: from, in: query, required: true, schema: { type: string, format: date } }
+        - { name: to, in: query, required: true, schema: { type: string, format: date }, description: 'Inclusive; at most 366 days after from' }
+        - name: accountId
+          in: query
+          required: false
+          schema: { type: array, items: { type: string, format: uuid } }
+          style: form
+          explode: true
+      responses:
+        '200':
+          description: Coverage per account
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Coverage' }
+        '400': { $ref: '#/components/responses/BadRequest' }
 
   /api/counterparties:
     get:
@@ -750,6 +859,185 @@ components:
       properties:
         label: { type: string, maxLength: 80, nullable: true }
         isOwnAccount: { type: boolean }
+
+    CategoryUpdate:
+      type: object
+      required: [category]
+      properties:
+        category:
+          allOf: [{ $ref: '#/components/schemas/Category' }]
+          description: Any category except INTERNAL_TRANSFER (400)
+        applyToFuture: { type: boolean, default: false, description: 'Learn the merchant (user alias) for future statements' }
+
+    Granularity:
+      type: string
+      enum: [DAY, WEEK, MONTH, CUSTOM]
+
+    ReportStatus:
+      type: string
+      enum: [PENDING, READY, STALE, FAILED]
+
+    CoverageStatus:
+      type: string
+      enum: [COMPLETE, PARTIAL]
+
+    DateRange:
+      type: object
+      required: [from, to]
+      properties:
+        from: { type: string, format: date }
+        to: { type: string, format: date, description: Inclusive }
+
+    UnconfirmedTransfers:
+      type: object
+      description: CANDIDATE transfers in the period (excluded from totals until confirmed or matched)
+      required: [count, amountBase]
+      properties:
+        count: { type: integer, minimum: 0 }
+        amountBase: { $ref: '#/components/schemas/Money' }
+
+    AccountCoverage:
+      type: object
+      required: [accountId, accountLabel, activeFrom, status, gaps]
+      properties:
+        accountId: { type: string, format: uuid }
+        accountLabel: { type: string }
+        activeFrom: { type: string, format: date }
+        closedAt: { type: string, format: date, nullable: true }
+        status: { $ref: '#/components/schemas/CoverageStatus' }
+        gaps: { type: array, items: { $ref: '#/components/schemas/DateRange' }, description: 'Active days with no CATEGORIZED statement' }
+
+    Coverage:
+      type: object
+      required: [from, to, status, accounts, unconfirmedTransfers]
+      properties:
+        from: { type: string, format: date }
+        to: { type: string, format: date }
+        status: { $ref: '#/components/schemas/CoverageStatus' }
+        accounts: { type: array, items: { $ref: '#/components/schemas/AccountCoverage' }, description: 'Accounts active in the range' }
+        unconfirmedTransfers: { $ref: '#/components/schemas/UnconfirmedTransfers' }
+
+    ReportTotals:
+      type: object
+      description: |
+        Base currency. Spend = money out, income = money in, both absolute; INTERNAL transfers and CANDIDATE
+        (unconfirmed) transfers are excluded. Savings deposits are internal transfers into a SAVINGS account,
+        reported alongside (not part of spend).
+      required: [spendBase, incomeBase, netBase, savingsDepositsBase, transactionCount]
+      properties:
+        spendBase: { $ref: '#/components/schemas/Money' }
+        incomeBase: { $ref: '#/components/schemas/Money' }
+        netBase: { allOf: [{ $ref: '#/components/schemas/Money' }], description: 'income - spend (negative when spending exceeds income)' }
+        savingsDepositsBase: { $ref: '#/components/schemas/Money' }
+        savingsRate: { type: number, nullable: true, description: '(income - spend) / income, rounded to 3 decimals; null below month length or without income' }
+        transactionCount: { type: integer, description: 'Transactions counted in spend or income' }
+
+    ReportCategoryTotal:
+      type: object
+      required: [category, amountBase, count, share]
+      properties:
+        category: { $ref: '#/components/schemas/Category' }
+        amountBase: { $ref: '#/components/schemas/Money' }
+        count: { type: integer }
+        share: { type: number, description: 'Share of total spend, 0..1 (3 decimals)' }
+
+    AccountTotal:
+      type: object
+      required: [accountId, accountLabel, spendBase, incomeBase]
+      properties:
+        accountId: { type: string, format: uuid }
+        accountLabel: { type: string }
+        spendBase: { $ref: '#/components/schemas/Money' }
+        incomeBase: { $ref: '#/components/schemas/Money' }
+
+    MerchantTotal:
+      type: object
+      required: [name, amountBase, count]
+      properties:
+        merchantId: { type: string, format: uuid, nullable: true }
+        name: { type: string, description: 'Normalized merchant name' }
+        category: { allOf: [{ $ref: '#/components/schemas/Category' }], nullable: true, description: 'Category with the largest spend at this merchant' }
+        amountBase: { $ref: '#/components/schemas/Money' }
+        count: { type: integer }
+
+    TrendPoint:
+      type: object
+      required: [from, to, spendBase, incomeBase]
+      properties:
+        from: { type: string, format: date }
+        to: { type: string, format: date }
+        spendBase: { $ref: '#/components/schemas/Money' }
+        incomeBase: { $ref: '#/components/schemas/Money' }
+        coverage: { allOf: [{ $ref: '#/components/schemas/CoverageStatus' }], description: 'history points only' }
+
+    Baseline:
+      type: object
+      description: |
+        Previous periods of the same length used by the comparison rules (DAY: the same weekday in the previous 4 weeks;
+        WEEK: previous 4 weeks; MONTH: previous 3 months; CUSTOM: the 3 ranges of the same length right before).
+        Only periods with COMPLETE coverage count. Below `periodsRequired`, comparison rules are skipped and the
+        dashboard says "Not enough history yet".
+      required: [periodsWanted, periodsRequired, periodsUsed, enoughHistory]
+      properties:
+        periodsWanted: { type: integer }
+        periodsRequired: { type: integer }
+        periodsUsed: { type: integer }
+        enoughHistory: { type: boolean }
+
+    InsightType:
+      type: string
+      enum: [CATEGORY_SPIKE, UNUSUAL_TRANSACTION, MERCHANT_CONCENTRATION, FEES_AND_INTEREST, RECURRING_PAYMENTS,
+             DUPLICATE_SUBSCRIPTIONS, SAVINGS_RATE]
+
+    Insight:
+      type: object
+      description: |
+        One finding of an insight rule. `message` is a short English sentence; `data` holds the numbers
+        (amounts as Money strings), by type:
+        - CATEGORY_SPIKE: category, amountBase, baselineBase, changePct
+        - UNUSUAL_TRANSACTION: transactionId, date, merchant, category, amountBase, typicalBase
+        - MERCHANT_CONCENTRATION: merchant, category, amountBase, share, previousShare (nullable)
+        - FEES_AND_INTEREST: totalBase, items [{category, amountBase, count}]
+        - RECURRING_PAYMENTS: items [{merchant, category, amountBase, months}], totalBase
+        - DUPLICATE_SUBSCRIPTIONS: category, merchants [string], totalBase
+        - SAVINGS_RATE: rate, incomeBase, spendBase, savingsDepositsBase
+      required: [type, severity, message, data]
+      properties:
+        type: { $ref: '#/components/schemas/InsightType' }
+        severity: { type: string, enum: [INFO, WARNING] }
+        message: { type: string, example: 'RESTAURANTS spending is 45% above your usual (812.40 vs 560.10 RON)' }
+        data: { type: object, additionalProperties: true }
+
+    ReportSummary:
+      type: object
+      required: [coverage, totals, unconfirmedTransfers, byCategory, byAccount, topMerchants, trend, history, baseline]
+      properties:
+        coverage: { $ref: '#/components/schemas/Coverage' }
+        totals: { $ref: '#/components/schemas/ReportTotals' }
+        unconfirmedTransfers: { $ref: '#/components/schemas/UnconfirmedTransfers' }
+        byCategory: { type: array, items: { $ref: '#/components/schemas/ReportCategoryTotal' }, description: 'Spend by category, largest first (never INCOME or INTERNAL_TRANSFER)' }
+        byAccount: { type: array, items: { $ref: '#/components/schemas/AccountTotal' } }
+        topMerchants: { type: array, items: { $ref: '#/components/schemas/MerchantTotal' }, description: 'Top 10 by spend' }
+        trend: { type: array, items: { $ref: '#/components/schemas/TrendPoint' }, description: 'One point per day of the period (empty for DAY)' }
+        history: { type: array, items: { $ref: '#/components/schemas/TrendPoint' }, description: 'MONTH only: the 6 months ending with this one, oldest first' }
+        baseline: { $ref: '#/components/schemas/Baseline' }
+
+    Report:
+      type: object
+      required: [id, granularity, periodStart, periodEnd, status, stale, version, currency, insights]
+      properties:
+        id: { type: string, format: uuid }
+        granularity: { $ref: '#/components/schemas/Granularity' }
+        periodStart: { type: string, format: date }
+        periodEnd: { type: string, format: date }
+        accountIds: { type: array, items: { type: string, format: uuid }, nullable: true, description: 'null = all accounts' }
+        status: { $ref: '#/components/schemas/ReportStatus' }
+        stale: { type: boolean, description: 'true while the numbers are from an older version and a rebuild is queued' }
+        version: { type: integer }
+        builtAt: { type: string, format: date-time, nullable: true }
+        currency: { $ref: '#/components/schemas/Currency' }
+        summary: { allOf: [{ $ref: '#/components/schemas/ReportSummary' }], nullable: true, description: 'null until the first build succeeds' }
+        insights: { type: array, items: { $ref: '#/components/schemas/Insight' } }
 
     Problem:
       type: object

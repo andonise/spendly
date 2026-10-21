@@ -143,4 +143,5 @@ without the setting, or `git push --no-verify`.
 | 2 | pdf-parser | done (one PDF layout) |
 | Web | shell, accounts, upload, statement page, questions, transactions, counterparties | done |
 | 3 | transfer detection, categorization (rules → embeddings → LLM), questions and learning | done; holdout accuracy 84.2%, below the 90% target (see `eval/golden/README.md`) |
-| 4–7 | reports, chat, eval toolkit, polish | next |
+| 4 | daily aggregates, coverage, period reports (day / week / month / custom), insight rules, dashboard, category corrections | done (not yet clicked through in a browser) |
+| 5–7 | recommendations and chat, eval toolkit, polish | next |

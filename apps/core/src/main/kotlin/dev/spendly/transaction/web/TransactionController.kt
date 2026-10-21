@@ -1,5 +1,7 @@
 package dev.spendly.transaction.web
 
+import dev.spendly.transaction.domain.CategoryCorrectionService
+import dev.spendly.transaction.domain.CategoryUpdate
 import dev.spendly.transaction.domain.TransactionFilter
 import dev.spendly.transaction.domain.TransactionPage
 import dev.spendly.transaction.domain.TransactionQueryService
@@ -13,7 +15,9 @@ import java.util.UUID
 import org.springframework.jdbc.core.simple.JdbcClient
 import org.springframework.stereotype.Service
 import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.PatchMapping
 import org.springframework.web.bind.annotation.PathVariable
+import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
@@ -21,7 +25,7 @@ import org.springframework.web.bind.annotation.RestController
 @RestController
 @RequestMapping("/api/transactions")
 @Tag(name = "transactions")
-class TransactionController(private val service: TransactionQueryService) {
+class TransactionController(private val service: TransactionQueryService, private val corrections: CategoryCorrectionService) {
 
     @GetMapping
     fun listTransactions(
@@ -38,4 +42,8 @@ class TransactionController(private val service: TransactionQueryService) {
 
     @GetMapping("/{transactionId}")
     fun getTransaction(@PathVariable transactionId: UUID): TransactionResponse = service.get(transactionId)
+
+    @PatchMapping("/{transactionId}/category")
+    fun updateTransactionCategory(@PathVariable transactionId: UUID, @RequestBody body: CategoryUpdate): TransactionResponse =
+        corrections.correct(transactionId, body)
 }

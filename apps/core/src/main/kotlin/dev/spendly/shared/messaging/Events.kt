@@ -12,6 +12,7 @@ object Topics {
     const val INPUT_REQUIRED = "spendly.input-required"
     const val ANSWERS_SUBMITTED = "spendly.answers-submitted"
     const val TRANSACTIONS_CHANGED = "spendly.transactions-changed"
+    const val REPORT_REQUESTED = "spendly.report-requested"
     const val DLQ_SUFFIX = ".dlq"
     val INGESTION = listOf(STATEMENT_UPLOADED, TRANSACTIONS_IMPORTED, STATEMENT_PARSE_FAILED)
 }
@@ -24,6 +25,7 @@ object EventTypes {
     const val INPUT_REQUIRED = "InputRequired"
     const val ANSWERS_SUBMITTED = "AnswersSubmitted"
     const val TRANSACTIONS_CHANGED = "TransactionsChanged"
+    const val REPORT_REQUESTED = "ReportRequested"
 
     /** eventType -> schema file in contracts/schemas. */
     val SCHEMA_FILES = mapOf(
@@ -34,6 +36,7 @@ object EventTypes {
         INPUT_REQUIRED to "input-required.schema.json",
         ANSWERS_SUBMITTED to "answers-submitted.schema.json",
         TRANSACTIONS_CHANGED to "transactions-changed.schema.json",
+        REPORT_REQUESTED to "report-requested.schema.json",
     )
 }
 
@@ -62,6 +65,9 @@ object ConsumerNames {
     const val CATEGORIZER = "spendly-backend-categorizer"
     const val RESUME = "spendly-backend-resume"
     const val TRANSFER_MATCHER = "spendly-backend-transfer-matcher"
+    const val AGGREGATOR = "spendly-backend-aggregator"
+    const val REPORT_BUILDER = "spendly-backend-report-builder"
+    const val REPORT_DLQ = "spendly-backend-report-dlq"
 }
 
 data class EventEnvelope<T>(
@@ -160,4 +166,17 @@ data class TransactionsChangedPayload(
     val toDate: String,
     val cause: String,
     val statementId: String?,
+)
+
+/** Why a report (re)build was requested (contracts/schemas/report-requested.schema.json). */
+enum class ReportRequestReason { STALE_MONTHLY, MONTH_STARTED, STALE_VIEWED, PENDING_REBUILD }
+
+data class ReportRequestedPayload(
+    val reportId: String,
+    val version: Int,
+    val granularity: String,
+    val periodStart: String,
+    val periodEnd: String,
+    val accountScope: String,
+    val reason: String,
 )

@@ -1,0 +1,9 @@
+{
+  "eventId": "5b2e8f14-9c3d-4a71-8e6f-2d4c6b8a0e13",
+  "eventType": "ReportRequested",
+  "schemaVersion": 1,
+  "occurredAt": "2026-09-01T08:20:10.412Z",
+  "correlationId": "upl-20260901-7c1e9a",
+  "producer": "spendly-backend",
+  "payload": {"reportId": "a7d3c1e9-4b2f-4e8a-9c6d-1f3e5a7b9c2d", "version": 3, "granularity": "MONTH", "periodStart": "2026-08-01", "periodEnd": "2026-08-31", "accountScope": "ALL", "reason": "STALE_MONTHLY"}
+}

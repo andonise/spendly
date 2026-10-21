@@ -36,6 +36,7 @@ import { EmptyState } from '../../shared/empty-state';
 import { MoneyPipe } from '../../shared/money.pipe';
 import { TRANSFER_STATUS_LABELS, categoryProvenance, counterpartyName } from '../../shared/transfers';
 import { CounterpartyDialog, CounterpartyDialogData } from '../counterparties/counterparty-dialog';
+import { CategoryDialog } from './category-dialog';
 
 /** Filter keys kept in the URL query string. */
 export const FILTER_KEYS = ['accountId', 'statementId', 'from', 'to', 'category', 'transferStatus'] as const;
@@ -116,6 +117,7 @@ export class TransactionsPage {
   protected readonly sortDirection = computed(() => this.query().sort!.split(',')[1] as 'asc' | 'desc');
   protected readonly hasFilters = computed(() => FILTER_KEYS.some((k) => !!this.query()[k]));
   private readonly accountsById = computed(() => new Map(this.accounts().map((a) => [a.id, a])));
+  private readonly statementsById = computed(() => new Map(this.statements().map((s) => [s.id, s])));
 
   constructor() {
     effect(() => {
@@ -185,6 +187,27 @@ export class TransactionsPage {
           this.load();
           this.loadQuestions();
         }
+      });
+  }
+
+  /** Why a row's category can't be changed here (tooltip), or null when it can. Mirrors the PATCH 409 rules. */
+  protected editBlocker(t: Transaction): string | null {
+    if (t.transferStatus === 'INTERNAL') return 'Transfers between your own accounts keep their category';
+    if (t.transferStatus === 'CANDIDATE') return 'Confirm the transfer first';
+    const statement = this.statementsById().get(t.statementId);
+    if (statement && statement.status !== 'CATEGORIZED') return 'Answer the statement’s questions first';
+    return null;
+  }
+
+  /** "Change category" row action: PATCH, then the row shows the new category (reports refresh on the server). */
+  changeCategory(t: Transaction): void {
+    this.dialog
+      .open(CategoryDialog, { data: t, width: '440px', maxWidth: 'calc(100vw - 32px)' })
+      .afterClosed()
+      .subscribe((updated?: Transaction) => {
+        const page = this.result();
+        if (!updated || !page) return;
+        this.result.set({ ...page, items: page.items.map((row) => (row.id === updated.id ? updated : row)) });
       });
   }
 

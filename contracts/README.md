@@ -15,6 +15,7 @@ made here first, then in every service at once.
 | `schemas/input-required.schema.json` | `InputRequired` event (Phase 3) | backend → notifier |
 | `schemas/answers-submitted.schema.json` | `AnswersSubmitted` event (Phase 3) | backend → resume handler |
 | `schemas/transactions-changed.schema.json` | `TransactionsChanged` event (Phase 3+) | backend → transfer matcher, aggregator |
+| `schemas/report-requested.schema.json` | `ReportRequested` event (Phase 4) | backend aggregator / reports API → report builder |
 | `examples/*.json` | One valid example per event (validated in CI-style check below) | tests, docs |
 | `pii-rules.json` | Sanitizer rules (data) | backend + pdf-parser sanitizers |
 | `fixtures/sanitizer-cases.json` | Inputs with exact expected sanitized output | both sanitizer test suites (AC-SD-4) |
@@ -35,7 +36,8 @@ and resolve `$id`s locally. **Never fetch `spendly.local` over the network.**
 | `spendly.statement-parsed` | `StatementParsed` | accountId | backend import handler (outbox) | `spendly-backend-categorizer` |
 | `spendly.input-required` | `InputRequired` | accountId | backend categorizer / resume handler | `spendly-backend-notifier` |
 | `spendly.answers-submitted` | `AnswersSubmitted` | accountId | backend answers API | `spendly-backend-resume` |
-| `spendly.transactions-changed` | `TransactionsChanged` | `accountIds[0]` | backend (categorizer, resume, transfer matcher, counterparty labels) | `spendly-backend-transfer-matcher` (Phase 3), `spendly-backend-aggregator` (Phase 4) |
+| `spendly.transactions-changed` | `TransactionsChanged` | `accountIds[0]` | backend (categorizer, resume, transfer matcher, counterparty labels, manual corrections) | `spendly-backend-transfer-matcher` (Phase 3), `spendly-backend-aggregator` (Phase 4) |
+| `spendly.report-requested` | `ReportRequested` | reportId | backend aggregator, reports API (outbox) | `spendly-backend-report-builder` (Phase 4) |
 | `<topic>.dlq` | original message, unchanged | same key | whoever gave up on it | `spendly-backend-dlq` (moves the statement to `FAILED`) |
 
 Topics are created by the `redpanda-init` service in `docker-compose.yml` (3 partitions, 24 h retention).

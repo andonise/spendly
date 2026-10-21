@@ -79,8 +79,9 @@ function prefersDark(): boolean {
       <mat-card appearance="outlined" class="section">
         <mat-card-content class="links">
           <mat-icon aria-hidden="true">insights</mat-icon>
-          <span>Reports covering {{ statement().periodStart }} – {{ statement().periodEnd }}
-            {{ account() ? 'for ' + account()!.label : '' }} will be linked here once the period analysis (Phase 4) is available.</span>
+          <span class="links-text">Report for {{ statement().periodStart }} – {{ statement().periodEnd }}
+            {{ account() ? 'for ' + account()!.label : '' }}</span>
+          <a mat-stroked-button class="view-report" routerLink="/dashboard" [queryParams]="reportLink()">Open report</a>
         </mat-card-content>
       </mat-card>
     } @else {
@@ -100,7 +101,8 @@ function prefersDark(): boolean {
     .breakdown th { text-align: left; font: var(--mat-sys-label-large); color: var(--mat-sys-on-surface-variant); padding: 8px 4px; }
     .breakdown td { padding: 6px 4px; border-top: 1px solid var(--mat-sys-outline-variant); }
     .num { text-align: right; font-variant-numeric: tabular-nums; }
-    .links { display: flex; gap: 12px; align-items: center; padding-top: 16px; }
+    .links { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; padding-top: 16px; }
+    .links-text { flex: 1; min-width: 200px; }
   `,
 })
 export class StatementSummary {
@@ -155,6 +157,12 @@ export class StatementSummary {
         },
       ],
     };
+  });
+
+  /** Dashboard for exactly the statement's dates and account (a CUSTOM range). */
+  protected readonly reportLink = computed(() => {
+    const s = this.statement();
+    return { g: 'CUSTOM', from: s.periodStart, to: s.periodEnd, accounts: s.accountId };
   });
 
   protected abs(money: string): string {

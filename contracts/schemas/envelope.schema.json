@@ -12,7 +12,7 @@
       "type": "string",
       "enum": [
         "StatementUploaded", "TransactionsImported", "StatementParseFailed",
-        "StatementParsed", "InputRequired", "AnswersSubmitted", "TransactionsChanged"
+        "StatementParsed", "InputRequired", "AnswersSubmitted", "TransactionsChanged", "ReportRequested"
       ]
     },
     "schemaVersion": { "type": "integer", "minimum": 1, "description": "Version of the payload schema for this eventType" },

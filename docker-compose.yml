@@ -64,7 +64,8 @@ services:
       - |
         set -e
         for base in spendly.statement-uploaded spendly.transactions-imported spendly.statement-parse-failed \
-                    spendly.statement-parsed spendly.input-required spendly.answers-submitted spendly.transactions-changed; do
+                    spendly.statement-parsed spendly.input-required spendly.answers-submitted spendly.transactions-changed \
+                    spendly.report-requested; do
           for t in "$$base" "$$base.dlq"; do
           if rpk topic describe "$$t" -X brokers=redpanda:9092 >/dev/null 2>&1; then
             echo "topic $$t exists"
