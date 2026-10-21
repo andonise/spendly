@@ -57,6 +57,7 @@ abstract class IntegrationTest {
             "spendly.statement-uploaded.dlq", "spendly.transactions-imported.dlq", "spendly.statement-parse-failed.dlq",
             "spendly.statement-parsed", "spendly.input-required", "spendly.answers-submitted", "spendly.transactions-changed",
             "spendly.statement-parsed.dlq", "spendly.answers-submitted.dlq", "spendly.transactions-changed.dlq",
+            "spendly.report-requested", "spendly.report-requested.dlq",
             "spendly.test-outbox",
         )
 

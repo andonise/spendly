@@ -5,6 +5,8 @@ import dev.spendly.shared.messaging.ChangeCause
 import dev.spendly.shared.messaging.EventEnvelope
 import dev.spendly.shared.messaging.EventTypes
 import dev.spendly.shared.messaging.InputRequiredPayload
+import dev.spendly.shared.messaging.ReportRequestReason
+import dev.spendly.shared.messaging.ReportRequestedPayload
 import dev.spendly.shared.messaging.StatementParsedPayload
 import dev.spendly.shared.messaging.Topics
 import dev.spendly.shared.messaging.TransactionsChangedPayload
@@ -12,7 +14,7 @@ import java.time.LocalDate
 import java.util.UUID
 import org.springframework.stereotype.Component
 
-/** Writes the Phase 3 events to the outbox, in the caller's transaction (they publish after commit). */
+/** Writes the Phase 3 and 4 events to the outbox, in the caller's transaction (they publish after commit). */
 @Component
 class DomainEvents(private val outbox: OutboxService) {
 
@@ -57,4 +59,21 @@ class DomainEvents(private val outbox: OutboxService) {
             Topics.TRANSACTIONS_CHANGED, ids.first().toString(), statementId ?: ids.first(),
         )
     }
+
+    fun reportRequested(
+        reportId: UUID,
+        version: Int,
+        granularity: String,
+        periodStart: LocalDate,
+        periodEnd: LocalDate,
+        accountScope: String,
+        reason: ReportRequestReason,
+        correlationId: String,
+    ) = outbox.append(
+        EventEnvelope.create(
+            EventTypes.REPORT_REQUESTED, correlationId,
+            ReportRequestedPayload(reportId.toString(), version, granularity, periodStart.toString(), periodEnd.toString(), accountScope, reason.name),
+        ),
+        Topics.REPORT_REQUESTED, reportId.toString(), reportId,
+    )
 }
