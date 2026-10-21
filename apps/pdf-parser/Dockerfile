@@ -1,5 +1,5 @@
 # Spendly PDF parser. Build context: ./pdf-parser (contracts are NOT copied in; they are mounted at /contracts).
-FROM ghcr.io/astral-sh/uv:0.12.21 AS uv
+FROM ghcr.io/astral-sh/uv:0.13.4 AS uv
 
 FROM python:3.12.13-slim-bookworm AS build
 COPY --from=uv /uv /usr/local/bin/uv
