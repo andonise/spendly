@@ -1,9 +1,9 @@
 plugins {
-	kotlin("jvm") version "2.3.21"
-	kotlin("plugin.spring") version "2.3.21"
+	kotlin("jvm") version "2.4.20"
+	kotlin("plugin.spring") version "2.4.20"
 	id("org.springframework.boot") version "4.1.1"
 	id("io.spring.dependency-management") version "1.1.7"
-	kotlin("plugin.jpa") version "2.3.21"
+	kotlin("plugin.jpa") version "2.4.20"
 	jacoco
 }
 
@@ -42,7 +42,7 @@ dependencies {
 	implementation("org.springframework.ai:spring-ai-vector-store-advisor")
 	implementation("tools.jackson.module:jackson-module-kotlin")
 	implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:3.1.1")
-	implementation("com.networknt:json-schema-validator:3.0.7")
+	implementation("com.networknt:json-schema-validator:3.0.8")
 	runtimeOnly("org.postgresql:postgresql")
 
 	testImplementation("org.springframework.boot:spring-boot-starter-actuator-test")
