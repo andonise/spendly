@@ -30,7 +30,7 @@
     "@angular/build": "21.2.24",
     "@angular/cli": "21.2.24",
     "@angular/compiler-cli": "21.2.25",
-    "@vitest/coverage-v8": "4.1.11",
+    "@vitest/coverage-v8": "5.0.3",
     "jsdom": "29.1.1",
     "prettier": "3.9.9",
     "typescript": "5.9.3",
