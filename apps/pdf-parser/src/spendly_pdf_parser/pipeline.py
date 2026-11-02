@@ -14,7 +14,7 @@ from typing import Any, BinaryIO
 from . import events
 from .contracts import Contracts
 from .extraction import ExtractionError, LayoutParser, RawStatement, extract_statement
-from .extraction.normalize import NormalizationError, format_amount, parse_ro_date, parse_ro_decimal
+from .extraction.normalize import NormalizationError, format_amount, parse_amount, parse_date
 from .sanitizer import Sanitizer
 
 MAX_DESCRIPTION = 500
@@ -138,10 +138,10 @@ def build_from_raw(raw: RawStatement, ctx: StatementContext, sanitizer: Sanitize
         description = clean.text[:MAX_DESCRIPTION].strip() or EMPTY_DESCRIPTION
         # 2. normalize
         try:
-            booking = parse_ro_date(row.booking_date)
-            value_date = parse_ro_date(row.value_date) if row.value_date else None
-            debit = parse_ro_decimal(row.debit, allow_negative=False) if row.debit else None
-            credit = parse_ro_decimal(row.credit, allow_negative=False) if row.credit else None
+            booking = parse_date(row.booking_date)
+            value_date = parse_date(row.value_date) if row.value_date else None
+            debit = parse_amount(row.debit, allow_negative=False) if row.debit else None
+            credit = parse_amount(row.credit, allow_negative=False) if row.credit else None
         except NormalizationError:
             return failure(ctx, "UNSUPPORTED_LAYOUT", "A transaction row has an unreadable date or amount",
                            summary=_empty_summary(raw.layout), contracts=contracts)

@@ -15,16 +15,33 @@ Contracts (schemas, `pii-rules.json`, sanitizer algorithm, Kafka conventions) li
 | `settings.py` | env vars (`KAFKA_BOOTSTRAP_SERVERS`, `SPENDLY_UPLOAD_DIR`, `SPENDLY_UPLOAD_RETENTION`, `SPENDLY_HMAC_SECRET_PATH`, `SPENDLY_CONTRACTS_DIR`, `PDF_PARSER_PORT`, `OLLAMA_BASE_URL`, `LOG_LEVEL`); fails fast if the HMAC key or contracts are missing (never prints values) |
 | `contracts.py` | loads all schemas into a local `referencing.Registry` (never fetches `spendly.local`) and `pii-rules.json` |
 | `sanitizer.py` | the shared sanitizer, exactly as specified in `contracts/README.md` |
-| `extraction/` | `LayoutParser` interface + `RomanianCardTableLayout` (pdfplumber, header `Data \| Descriere \| Debit \| Credit`) + Romanian number/date normalization |
+| `extraction/` | `LayoutParser` interface, the layouts below, and date/amount normalization for any common format (`03.08.2026`, `Oct 9, 2026`, `1.234,56`, `1,234.56 RON` …) |
+| `extraction/text_table.py` | engine for positioned-text tables (no grid): finds the column header by meaning (EN/RO synonyms), assigns each amount to the column it sits under, skips pending/reverted/blocked sections, checks running balances |
 | `pipeline.py` | sanitize → normalize → `txHash` / `counterpartyToken` → balance check → schema validation; pure, no I/O |
 | `kafka_worker.py` | consumer group `spendly-pdf-parser`, manual commits, retries (1 s, 2 s, 4 s) then DLQ, temp file deletion |
 | `api.py` | FastAPI `GET /health`, `POST /parse`; runs the worker in a background thread |
 | `log.py` | JSON logs with whitelisted ID fields only |
 
-Adding a layout: implement `extraction.base.LayoutParser` (`detect`, `extract`) and register it in
-`extraction.default_layouts()`. A `docling`/`camelot` extractor, or the optional Ollama fallback for
-unknown layouts (not implemented; see the docstring in `extraction/base.py`), plugs in there. Its rows
-still go through the sanitizer and the balance check.
+### Layouts
+
+Tried in order; the first whose `detect` matches reads the file.
+
+| Layout | Bank / shape | Validation facts |
+|---|---|---|
+| `ro-table-data-descriere-debit-credit` | ruled table `Data \| Descriere \| Debit \| Credit` (`samples/credit-card-2026-08.pdf`) | `Sold initial` / `Sold final` |
+| `revolut` | Revolut PDF; only `Account transactions` (pending and reverted skipped); description = main line only, same as the CSV export (`samples/revolut-2026-09.pdf`) | balance summary, running balance |
+| `ing-ro` | ING Romania `Extras de cont`; description = type + terminal / beneficiary / payer / account / details (`samples/ing-2026-09.pdf`) | `Sold initial` / `Sold final` |
+| `generic-table` | **fallback for any bank**: a header with date + description + debit/credit or signed amount (optional value date, balance), EN or RO; wrapped descriptions joined; newest-first put in date order (`samples/other-bank-2026-09.pdf`, `samples/ro-bank-2026-09.pdf`) | opening/closing balance lines, else the running balance |
+
+Nothing is imported unless `opening + sum(amounts) == closing`; a running balance column is also checked on
+every row. A statement with neither balances nor a running balance is rejected (`UNSUPPORTED_LAYOUT`), as are
+scanned (image-only) PDFs.
+
+Adding a layout for a bank the fallback can't read: implement `extraction.base.LayoutParser` (`detect`,
+`extract`; reuse `text_table`) and register it in `extraction.default_layouts()` before `GenericTableLayout`.
+Inspect a real statement only for its structure (labels and positions) and test with a synthetic sample.
+Rows still go through the sanitizer and the balance check. An Ollama fallback for layouts without a
+recognisable header is not implemented (see the docstring in `extraction/base.py`).
 
 ## Run locally (uv)
 

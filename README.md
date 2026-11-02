@@ -140,7 +140,7 @@ without the setting, or `git push --no-verify`.
 |---|---|---|
 | Foundation | layout, compose, contracts, samples | done |
 | 0 / 1 | core: accounts, sanitizer, upload, status machine, outbox, CSV parsers | done |
-| 2 | pdf-parser | done (one PDF layout) |
+| 2 | pdf-parser | done: Revolut, ING, Romanian card table, plus a generic fallback for other banks |
 | Web | shell, accounts, upload, statement page, questions, transactions, counterparties | done |
 | 3 | transfer detection, categorization (rules → embeddings → LLM), questions and learning | done; holdout accuracy 84.2%, below the 90% target (see `eval/golden/README.md`) |
 | 4–7 | reports, chat, eval toolkit, polish | next |

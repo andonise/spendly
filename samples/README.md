@@ -6,6 +6,7 @@ test numbers, so the sanitizer must treat them as real. Regenerate with:
 
 ```bash
 uv run --no-project --with reportlab==4.2.5 python samples/tools/generate_samples.py
+uv run --no-project --with reportlab==4.2.5 python samples/tools/generate_ing_sample.py
 ```
 
 ## Accounts these files belong to
@@ -25,6 +26,10 @@ Third-party IBAN (landlord): `RO38 TEST 7777 8888 9999 0000`.
 | `generic-bank-2026-08.csv` | generic bank CSV | 2026-08-01 – 2026-08-31 | 18 | 6393.56 | 8650.00 | 5000.00 | 7256.44 |
 | `revolut-2026-08.csv` | Revolut CSV | 2026-08-11 – 2026-08-28 * | 8 ** | 534.54 | 500.00 | 250.00 | 215.46 |
 | `credit-card-2026-08.pdf` | text PDF | 2026-08-01 – 2026-08-31 | 5 | 951.00 | 800.00 | -1200.00 | -1351.00 |
+| `revolut-2026-09.pdf` | Revolut-style PDF (positioned text, 2 pages) | 2026-09-01 – 2026-09-30 | 12 | 810.40 | 1450.00 | 320.50 | 960.10 |
+| `ing-2026-09.pdf` | ING-style PDF (positioned text, 2 pages) | 2026-09-01 – 2026-09-30 | 12 | 5354.59 | 6650.00 | 4000.00 | 5295.41 |
+| `other-bank-2026-09.pdf` | English bank PDF, newest first, running balance only | 2026-09-01 – 2026-09-30 | 8 | 1364.10 | 2800.00 | 812.40 | 2248.30 |
+| `ro-bank-2026-09.pdf` | Romanian bank PDF, signed `Suma` column | 2026-09-01 – 2026-09-30 | 5 | 1553.43 | 300.00 | 2500.00 | 1246.57 |
 
 \* Revolut exports have no period header, so the period is min/max booking date (the date part of
 `Completed Date`; for rows without one, `Started Date`).
