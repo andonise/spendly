@@ -9,6 +9,9 @@ import pdfplumber
 from pdfminer.pdfparser import PDFSyntaxError
 
 from .base import ExtractionError, LayoutParser, RawRow, RawStatement
+from .generic_table import GenericTableLayout
+from .ing import IngStatementLayout
+from .revolut import RevolutStatementLayout
 from .ro_card_table import RomanianCardTableLayout
 
 __all__ = [
@@ -22,8 +25,9 @@ __all__ = [
 
 
 def default_layouts() -> list[LayoutParser]:
-    # Order matters: the first layout whose detect() is True is used. Add docling/camelot/LLM layouts here.
-    return [RomanianCardTableLayout()]
+    # Order matters: the first layout whose detect() is True is used. Bank-specific layouts first;
+    # GenericTableLayout is the fallback for any statement with a recognisable column header.
+    return [RomanianCardTableLayout(), RevolutStatementLayout(), IngStatementLayout(), GenericTableLayout()]
 
 
 def extract_statement(source: bytes | BinaryIO, layouts: list[LayoutParser] | None = None) -> RawStatement:
